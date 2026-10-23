@@ -103,8 +103,8 @@ Unofficial co-op patch for enRage (Nexus mod 10967,
 https://www.nexusmods.com/reddeadredemption2/mods/10967), all credit for enRage
 to its author. Not made or supported by the enRage author. Free.
 The patch only works on your own copy of the official enRage download; it
-contains no enRage files. setup.py applies it and keeps your official copy as
-scripts/NemesisMod.dll.official.
+contains no enRage files. The co-op installer (RDR2CoopSetup.exe or setup.py)
+applies it and keeps your official copy as scripts/NemesisMod.dll.official.
 EOF
 cat > "$ADDON/README-ENRAGE-PATCH.txt" <<'EOF'
 Unofficial enRage co-op patch (optional add-on for RDR2 Co-op)
@@ -113,16 +113,17 @@ Shares the host's enRage world (nemeses, grudges, ambushes) with the co-op
 party: your partners' kills, wounds and knockouts count as yours, and enRage
 never turns a co-op player into a nemesis.
 
-Needs: RDR2 Co-op (main download), its Linux installer download, and enRage 0.9.5.1
+Needs: RDR2 Co-op with its installer (the Windows or Linux zip from
+https://github.com/BigCheeseThe3st/rdr2-coop/releases) and enRage 0.9.5.1
 from Nexus (mod 10967). Only the player who usually hosts needs it.
 
-  1. Unpack this in the same place as the main and installer downloads: it
-     goes into the same RDR2-Coop folder (adds the enrage-coop-patch folder).
+  1. Unpack this in the same place as the co-op zip: it goes into the same
+     RDR2-Coop folder (adds the enrage-coop-patch folder).
   2. Put the official enRage 0.9.5.1 zip from Nexus in that folder too
      (or have enRage already installed in the game).
-  3. Run the installer (python3 setup.py, Linux), say you usually host, and
-     yes to enRage. (The patch has to be applied to your own enRage file,
-     which only the installer does.)
+  3. Run the installer (Windows: RDR2CoopSetup.exe; Linux: python3 setup.py),
+     say you usually host, and yes to enRage. (The patch has to be applied to
+     your own enRage file, which only the installer does.)
 Your official enRage is kept; uninstalling the co-op mod puts it back.
 Not made or supported by the enRage author; all credit for enRage to them.
 EOF

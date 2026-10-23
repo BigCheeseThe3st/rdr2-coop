@@ -15,6 +15,10 @@ From [Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases):
 - `RDR2-Coop-<version>.zip`, `RDR2-Coop-Server-<version>.zip`,
   `RDR2-Coop-Linux-Installer-<version>.zip`: the same, as separate pieces
   (the mod and server are also on Nexus).
+- Optional, host only: `RDR2-Coop-enRage-Patch-<version>.zip`, the unofficial
+  enRage co-op patch (shares the host's enRage world with the party). Unpack it
+  into the same folder, add your own enRage 0.9.5.1 (Nexus mod 10967) and run
+  the installer. Not made or supported by enRage's author.
 
 You also need ScriptHookRDR2 (https://www.dev-c.com/rdr2/scripthookrdr2/) and
 ScriptHookRDR2DotNet V2 (https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases);
