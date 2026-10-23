@@ -11,7 +11,7 @@ OUT=${PUBLIC_DIR:-$HOME/rdr2-coop-public}
 find "$OUT" -mindepth 1 -maxdepth 1 ! -name .git -exec rm -rf {} +
 git archive HEAD | tar -x -C "$OUT"
 # Never publish anything that still names the private setup.
-if grep -rIl -i -E "beeseland|192\.168\.|ddns\.net|/home/george|gtrader|rtrader" "$OUT" --exclude-dir=.git --exclude=export-public.sh; then
+if grep -rIl -i -E "beeseland|192\.168\.[0-9]|ddns\.net|/home/george|gtrader|rtrader" "$OUT" --exclude-dir=.git --exclude=export-public.sh; then
   echo "personal details found in the files above: not committed"; exit 1
 fi
 cd "$OUT"

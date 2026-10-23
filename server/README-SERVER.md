@@ -1,5 +1,10 @@
 # Running your own RDR2 co-op server
 
+Most groups don't need this: the host's game can run the server itself
+(`RunServer=Yes` in RDR2Coop.ini, see README-PLAYERS.txt). This separate server
+is for an always-on room on a Pi, VPS or spare PC, which keeps running when the
+host's game closes.
+
 The server is a small relay: every player's game connects to it, and it passes
 messages between them. It never runs the game itself, needs almost nothing
 (about 20 MB of memory, under 1% of a Raspberry Pi's CPU, ~50 KB/s each way per

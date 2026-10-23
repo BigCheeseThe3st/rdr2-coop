@@ -222,7 +222,7 @@ namespace RDR2Coop.Net
 
         // Windows (and Wine) report an ICMP "port unreachable" as an error on
         // the next Receive; SIO_UDP_CONNRESET turns that off.
-        static void IgnoreConnectionResets(UdpClient udp)
+        internal static void IgnoreConnectionResets(UdpClient udp)
         {
             try { udp.Client.IOControl(unchecked((int)0x9800000C), new byte[] { 0, 0, 0, 0 }, null); }
             catch (Exception) { }

@@ -139,6 +139,8 @@ def set_ini(path, section_values):
         pattern = re.compile(rf"^{re.escape(key)}=.*$", re.M)
         if pattern.search(text):
             text = pattern.sub(lambda m: f"{key}={value}", text, count=1)   # value taken literally (backslashes)
+        elif re.search(r"^\[Coop\][ \t]*$", text, re.M):   # new setting in an older file: into [Coop], where the mod reads it
+            text = re.sub(r"^\[Coop\][ \t]*$", lambda m: f"{m.group(0)}\n{key}={value}", text, count=1, flags=re.M)
         else:
             text += f"\n{key}={value}\n"
     path.write_text(text)
@@ -204,7 +206,7 @@ def install_scripthook(game):
         say("  ScriptHookRDR2DotNet V2 2.2.0 installed")
 
 
-def install_coop(game, name, server, port, password, host):
+def install_coop(game, name, server, port, password, host, run_server=False):
     scripts = game / "scripts"
     scripts.mkdir(exist_ok=True)
     if not (HERE / "scripts/RDR2Coop.dll").is_file():
@@ -214,7 +216,7 @@ def install_coop(game, name, server, port, password, host):
     if not ini.exists() or "Server=" not in ini.read_text(errors="replace"):
         shutil.copy2(HERE / "scripts/RDR2Coop.ini", ini)
     set_ini(ini, {"Name": name, "Server": server, "Port": port, "Password": password,
-                  "PreferHost": "Yes" if host else "No"})
+                  "PreferHost": "Yes" if host else "No", "RunServer": "Yes" if run_server else "No"})
     say(f"  co-op mod installed; settings in {ini}")
 
 
@@ -358,20 +360,26 @@ def main():
 
     say("A few questions (Enter keeps the suggestion):")
     name = ask("Your name, shown to the other players", getpass.getuser())
-    server = ""
+    run_server = yes("Run the co-op server in your game (friends connect to you; no separate server needed)?", default=False)
+    server = "127.0.0.1" if run_server else ""
     while not server:
         server = ask("Co-op server address (ask whoever runs the server)")
     port = ask("Server port", "27460")
+    who = "pick one and tell your friends" if run_server else "ask whoever runs the server"
     while True:   # typed blind, so twice
-        password = getpass.getpass("Room password (ask whoever runs the server; not shown as you type): ").strip()
+        password = getpass.getpass(f"Room password ({who}; not shown as you type): ").strip()
         if password and password == getpass.getpass("Room password again: ").strip():
             break
         say("  The two didn't match (or were empty); try again.")
-    host = yes("Do you usually host (your story, missions and enRage world are the shared ones)?", default=False)
+    host = yes("Do you usually host (your story, missions and enRage world are the shared ones)?", default=run_server)
 
     say("\nInstalling:")
     install_scripthook(game)
-    install_coop(game, name, server, port, password, host)
+    install_coop(game, name, server, port, password, host, run_server)
+    if run_server:
+        say(f"  The server starts with your game and opens UDP {port} on your router by itself (UPnP);\n"
+            "  F10 in game shows the address to give your friends. No UPnP on your router: forward UDP\n"
+            f"  {port} to this PC by hand.")
 
     scripts = game / "scripts"
     nem = scripts / "NemesisMod.dll"

@@ -1,4 +1,5 @@
-// Story-mode co-op for up to 4 players through a relay server (server/relay.py).
+// Story-mode co-op for up to 4 players through a relay server (server/relay.py,
+// or the one built into this mod: BuiltInServer).
 // Every game runs the area around its own player; when players are close, one
 // game runs the shared area (the host's if the host is there, so its story and
 // enRage world are the one you share) and the others show copies of its NPCs.
@@ -39,6 +40,7 @@ namespace RDR2Coop.Mod
         readonly Stopwatch _clock = Stopwatch.StartNew();
         readonly Dictionary<byte, Remote> _remotes = new Dictionary<byte, Remote>();
         ServerLink _link;
+        BuiltInServer _builtIn;
         OwnedWorld _owned;
         MirrorWorld _mirror;
         byte _owner;                 // whose game runs our area (our own id when ours)
@@ -85,6 +87,12 @@ namespace RDR2Coop.Mod
             string password = ini.Get("Coop", "Password", "");
             bool preferHost = ini.Get("Coop", "PreferHost", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
             string appearAs = ini.Get("Coop", "AppearAs", "");
+            if (ini.Get("Coop", "RunServer", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase))
+            {
+                _builtIn = BuiltInServer.Start(port, password, !ini.Get("Coop", "UPnP", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase), out string why);
+                if (why != null) { Log(why); Say(why); }
+                server = "127.0.0.1";   // our own server (or whatever already runs on that port here)
+            }
             _appearAs = string.IsNullOrWhiteSpace(appearAs) ? 0 : MISC.GET_HASH_KEY(appearAs.Trim());
             _teleportKey = ParseKey(ini.Get("Keys", "TeleportToPartner", "F9"), Keys.F9);
             _statusKey = ParseKey(ini.Get("Keys", "ShowStatus", "F10"), Keys.F10);
@@ -214,6 +222,8 @@ namespace RDR2Coop.Mod
             if (_travelPending) { _travelPending = false; TravelTo(_travelTo, _travelName); }
             long now = _clock.ElapsedMilliseconds;
             _missionProbe.Tick(now);
+            string note = _builtIn?.TakeNote();
+            if (note != null) Say(note);
             _link.Poll(now);
             if (_link.State != LinkState.Connected) return;
 
@@ -467,7 +477,8 @@ namespace RDR2Coop.Mod
             {
                 string players = string.Join(", ", _link.Roster.Select(p => p.Name + (p.Role == PlayerRole.Host ? " (host)" : "")));
                 string area = _owner == 0 ? "-" : _owner == _link.MyId ? "your game" : _link.NameOf(_owner) + "'s game";
-                Say($"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}");
+                Say($"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
+                    (_builtIn != null ? " | " + _builtIn.Status : ""));
             }
             else if (e.KeyCode == _spawnWagonKey)
             {
@@ -518,6 +529,7 @@ namespace RDR2Coop.Mod
             _party?.Leave();   // never leave us faded, frozen or without control
             if (_down != null && _down.IsDown) _down.GetUp(null, "co-op stopped");
             _link?.Dispose();
+            _builtIn?.Dispose();
             AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);
             AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
         }

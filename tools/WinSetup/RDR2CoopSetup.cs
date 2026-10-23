@@ -61,17 +61,18 @@ static class Setup
     {
         Console.WriteLine("A few questions (Enter keeps the suggestion):");
         string name = Ask("Your name, shown to the other players", Environment.UserName);
-        string server = "";
+        bool runServer = Yes("Run the co-op server in your game (friends connect to you; no separate server needed)?", false);
+        string server = runServer ? "127.0.0.1" : "";
         while (server.Length == 0) server = Ask("Co-op server address (ask whoever runs the server)", "");
         string port = Ask("Server port", "27460");
         string password;
         while (true)
         {
-            password = ReadSecret("Room password (ask whoever runs the server; not shown as you type): ");
+            password = ReadSecret("Room password (" + (runServer ? "pick one and tell your friends" : "ask whoever runs the server") + "; not shown as you type): ");
             if (password.Length > 0 && password == ReadSecret("Room password again: ")) break;
             Console.WriteLine("  The two didn't match (or were empty); try again.");
         }
-        bool host = Yes("Do you usually host (your story, missions and enRage world are the shared ones)?", false);
+        bool host = Yes("Do you usually host (your story, missions and enRage world are the shared ones)?", runServer);
 
         Console.WriteLine("\nInstalling:");
         InstallScriptHook(game);
@@ -82,8 +83,16 @@ static class Setup
         if (!File.Exists(ini) || !File.ReadAllText(ini).Contains("Server="))
             File.Copy(Path.Combine(Here, "scripts", "RDR2Coop.ini"), ini, true);
         SetIni(ini, new Dictionary<string, string> { { "Name", name }, { "Server", server }, { "Port", port },
-                                                     { "Password", password }, { "PreferHost", host ? "Yes" : "No" } });
+                                                     { "Password", password }, { "PreferHost", host ? "Yes" : "No" },
+                                                     { "RunServer", runServer ? "Yes" : "No" } });
         Console.WriteLine("  co-op mod installed; settings in " + ini);
+        if (runServer)
+        {
+            AllowThroughFirewall(game, port);
+            Console.WriteLine("  The server starts with your game and opens UDP " + port + " on your router by itself (UPnP);");
+            Console.WriteLine("  F10 in game shows the address to give your friends. No UPnP on your router: forward UDP");
+            Console.WriteLine("  " + port + " to this PC by hand.");
+        }
 
         string nem = Path.Combine(scripts, "NemesisMod.dll");
         if (host && Directory.Exists(PatchDir))   // the optional enRage co-op patch download is unpacked here
@@ -282,6 +291,7 @@ static class Setup
         string scripts = Path.Combine(game, "scripts");
         foreach (var f in new[] { "RDR2Coop.dll", "RDR2Coop.ini", "RDR2Coop.log" })
             if (File.Exists(Path.Combine(scripts, f))) File.Delete(Path.Combine(scripts, f));
+        Netsh("advfirewall firewall delete rule name=\"" + FirewallRule + "\"");
         string dll = Path.Combine(scripts, "NemesisMod.dll");
         if (File.Exists(dll + ".off-for-coop")) { MoveOver(dll + ".off-for-coop", dll); Console.WriteLine("  enRage switched back on"); }
         if (File.Exists(dll + ".official")) { MoveOver(dll + ".official", dll); Console.WriteLine("  official enRage put back"); }   // last: wins over a patched copy
@@ -375,13 +385,42 @@ static class Setup
     }
 
     // key=value lines set in place, comments and other settings kept; values literal.
+    const string FirewallRule = "RDR2 Co-op server";
+
+    // The game's own server: let RDR2.exe receive on the co-op port (otherwise
+    // Windows asks the first time, and that prompt hides behind the game).
+    static void AllowThroughFirewall(string game, string port)
+    {
+        Netsh("advfirewall firewall delete rule name=\"" + FirewallRule + "\"");
+        bool ok = Netsh("advfirewall firewall add rule name=\"" + FirewallRule + "\" dir=in action=allow protocol=UDP localport=" + port +
+                        " program=\"" + Path.Combine(game, "RDR2.exe") + "\" profile=any");
+        Console.WriteLine(ok ? "  Windows Firewall: RDR2 may receive on UDP " + port
+                             : "  Couldn't add the Windows Firewall rule: allow RDR2 when Windows asks.");
+    }
+
+    static bool Netsh(string args)
+    {
+        try
+        {
+            var p = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("netsh", args)
+                { UseShellExecute = false, CreateNoWindow = true, RedirectStandardOutput = true });
+            p.StandardOutput.ReadToEnd();
+            p.WaitForExit();
+            return p.ExitCode == 0;
+        }
+        catch (Exception) { return false; }
+    }
+
     static void SetIni(string path, Dictionary<string, string> values)
     {
         string text = File.Exists(path) ? File.ReadAllText(path) : "";
         foreach (var kv in values)
         {
             var re = new Regex("^" + Regex.Escape(kv.Key) + "=[^\\r\\n]*", RegexOptions.Multiline);
-            text = re.IsMatch(text) ? re.Replace(text, m => kv.Key + "=" + kv.Value, 1) : text + "\r\n" + kv.Key + "=" + kv.Value + "\r\n";
+            var coop = new Regex(@"^\[Coop\][ \t]*\r?$", RegexOptions.Multiline);
+            if (re.IsMatch(text)) text = re.Replace(text, m => kv.Key + "=" + kv.Value, 1);
+            else if (coop.IsMatch(text)) text = coop.Replace(text, m => m.Value.TrimEnd('\r') + "\r\n" + kv.Key + "=" + kv.Value, 1);   // new setting in an older file: into [Coop]
+            else text += "\r\n" + kv.Key + "=" + kv.Value + "\r\n";
         }
         File.WriteAllText(path, text);
     }

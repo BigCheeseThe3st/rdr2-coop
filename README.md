@@ -38,7 +38,9 @@ Load a story save; a subtitle says when you've joined. Settings live in
 `scripts/RDR2Coop.ini`, the log in `scripts/RDR2Coop.log` in the game folder.
 
 ## Server
-Every group needs one: `server/relay.py` (Python 3, no dependencies; Windows,
+The host's game runs it: `RunServer=Yes` in their RDR2Coop.ini (`src/Net/Relay.cs`,
+with UPnP from `src/Net/Upnp.cs`); friends point `Server=` at the host. For an
+always-on room there's the standalone `server/relay.py` (Python 3, no dependencies; Windows,
 macOS or Linux): `python3 relay.py --password YOUR-PASSWORD` (Windows:
 `py relay.py ...`), and forward UDP port 27460 for friends over the internet.
 See `server/README-SERVER.md` (Windows steps, `setup-server.sh` service install,

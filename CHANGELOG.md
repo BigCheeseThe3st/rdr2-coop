@@ -3,6 +3,18 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.5.0 (23 Oct 2026) - protocol 13
+- No separate server needed: RunServer=Yes in the host's RDR2Coop.ini runs the
+  co-op server inside their game. It asks the router to open the port (UPnP,
+  UPnP=No to skip) and shows the address to give friends (F10 too), or says
+  what to do when the router doesn't answer or the internet address is shared
+  (CGNAT). If the host's game closes, the session ends until it's back.
+- The installers ask whether to run the server in your game; the Windows one
+  also lets RDR2 through Windows Firewall on the co-op port.
+- Upgrading an older RDR2Coop.ini puts new settings in its [Coop] section.
+- The separate server (relay.py) still works the same, for always-on servers;
+  0.5.0 plays with 0.4.x and its server.
+
 ## 0.4.2 (23 Oct 2026) - protocol 13
 - The server is its own small download ("Server"), separate from the Linux
   installer, with steps for Windows, macOS and Linux.

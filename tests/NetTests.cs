@@ -47,14 +47,17 @@ static class NetTests
         Run("world buffer blends vehicles incl. rotation", WorldBufferVehicles);
         Run("authority: alone, host first, lowest id, hysteresis", AuthorityBasics);
         Run("authority: chains end on the real owner, never loop", AuthorityChains);
-        using (var server = RelayServer.Start())
-        {
-            Run("server: join, roster, first in hosts", () => ServerJoin(server.Port));
-            Run("server: positions, NPC updates and hits reach the right game", () => ServerRouting(server.Port));
-            Run("server: wrong password refused", () => ServerWrongPassword(server.Port));
-            Run("server: alone you stay connected (keepalive)", () => ServerKeepalive(server.Port));
-            Run("server: host leaves, a guest becomes host", () => ServerHandover(server.Port));
-        }
+        // The same server tests against relay.py and the server built into the mod.
+        foreach (bool builtIn in new[] { false, true })
+            using (var server = RelayServer.Start(builtIn))
+            {
+                string s = builtIn ? "built-in server" : "relay.py";
+                Run(s + ": join, roster, first in hosts", () => ServerJoin(server.Port));
+                Run(s + ": positions, NPC updates and hits reach the right game", () => ServerRouting(server.Port));
+                Run(s + ": wrong password refused", () => ServerWrongPassword(server.Port));
+                Run(s + ": alone you stay connected (keepalive)", () => ServerKeepalive(server.Port));
+                Run(s + ": host leaves, a guest becomes host", () => ServerHandover(server.Port));
+            }
 
         Console.WriteLine($"{_passed} passed, {_failed} failed");
         return _failed == 0 ? 0 : 1;
@@ -462,16 +465,18 @@ static class NetTests
     {
         public int Port;
         Process _p;
-        public static RelayServer Start()
+        RelayHost _host;
+        public static RelayServer Start(bool builtIn)
         {
             int port = new Random().Next(28000, 29000);
+            if (builtIn) { var h = new RelayHost(port, "pw", _ => { }); return new RelayServer { Port = h.Port, _host = h }; }
             var psi = new ProcessStartInfo("python3", $"-u server/relay.py --port {port} --password pw")
                 { UseShellExecute = false, RedirectStandardOutput = true, RedirectStandardError = true };
             var s = new RelayServer { Port = port, _p = Process.Start(psi) };
             s._p.StandardOutput.ReadLine();   // "relay on udp/..."
             return s;
         }
-        public void Dispose() { try { _p.Kill(); } catch (Exception) { } }
+        public void Dispose() { _host?.Dispose(); try { _p?.Kill(); } catch (Exception) { } }
     }
 
     static ServerLink Link(int port, string name, bool preferHost = false, string password = "pw") =>
