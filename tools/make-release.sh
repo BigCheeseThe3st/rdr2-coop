@@ -3,7 +3,7 @@
 #   RDR2-Coop-<v>.zip                       main file: just the mod (DLL + settings + readme)
 #   RDR2-Coop-Server-<v>.zip                optional: the server (relay + guide + Linux service)
 #   RDR2-Coop-Linux-Installer-<v>.zip       optional: setup.py + prefix script
-#   RDR2-Coop-Full-<v>.zip                  GitHub release: the three above in one
+#   RDR2-Coop-Full-<v>.zip                  GitHub release: all of them in one (incl. the enRage patch)
 #   RDR2-Coop-Windows-<v>.zip               GitHub release: mod + server + Windows installer exe
 #   RDR2-Coop-enRage-Patch-<pv>.zip         optional: the enRage co-op patch (binary patch)
 # All unpack into a folder called RDR2-Coop, so they land together. The main file
@@ -144,8 +144,9 @@ rm -rf "$TOOLS/__pycache__"
 (cd release/.stage/main && zip -qr "../../upload/RDR2-Coop-$VERSION.zip" "$N")
 (cd release/.stage/server && zip -qr "../../upload/RDR2-Coop-Server-$VERSION.zip" "$N")
 (cd release/.stage/tools && zip -qr "../../upload/RDR2-Coop-Linux-Installer-$VERSION.zip" "$N")
-# GitHub: everything but the enRage patch in one zip (mod + server + Linux installer).
-mkdir -p release/.stage/full && cp -r "$MAIN" release/.stage/full/ && cp -r "$SERVER"/. "$TOOLS"/. release/.stage/full/$N/
+# GitHub: everything in one zip (mod + server + Linux installer + enRage patch;
+# the installer only offers the patch to a host who has enRage).
+mkdir -p release/.stage/full && cp -r "$MAIN" release/.stage/full/ && cp -r "$SERVER"/. "$TOOLS"/. "$ADDON"/. release/.stage/full/$N/
 (cd release/.stage/full && zip -qr "../../upload/RDR2-Coop-Full-$VERSION.zip" "$N")
 
 # GitHub: Windows version: the mod + server + RDR2CoopSetup.exe, with
