@@ -3,6 +3,14 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.1 (23 Oct 2026) - protocol 13
+- The online room list is live: the server browser (F10 twice) now also shows
+  games whose host set Public=Yes, and the installers ask hosts whether to list
+  theirs. ListServer=off keeps the browser to your home network.
+- relay.py --public lists a standalone server there too.
+- The Windows and Linux installer downloads on GitHub include the enRage co-op
+  patch (offered only to a host who has enRage).
+
 ## 0.6.0 (23 Oct 2026) - protocol 13
 - Server browser: F10 twice in game lists co-op games on your home network (and,
   once the online room list is live, games whose host chose Public=Yes). Pick one, Enter, type its password (the

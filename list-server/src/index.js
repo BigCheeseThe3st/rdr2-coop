@@ -1,7 +1,8 @@
 // RDR2 Co-op room list: hosts who choose to be listed (Public=Yes) announce
 // their room every minute; the in-game browser reads the list. Rooms that stop
-// announcing drop off after TTL. Nothing is stored: the list lives in one
-// Durable Object's memory and rebuilds itself from the announcements.
+// announcing drop off after TTL. The list lives in one Durable Object: kept in
+// its storage (the object is shut down seconds after each request on the free
+// plan, losing memory) and cached in memory while it runs.
 //
 //   POST /v1/announce {name, port, players, max, version, ipv4?}
 //   POST /v1/remove   {port}
@@ -41,18 +42,24 @@ const cleanName = (s) => (typeof s === "string" ? s.replace(/[\p{C}]/gu, "").tri
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : null);
 
 export class RoomList {
-  constructor() {
+  constructor(ctx) {
+    this.storage = ctx.storage;
     this.rooms = new Map(); // "address:port" -> room
+    ctx.blockConcurrencyWhile(async () => {
+      for (const [k, r] of await this.storage.list()) this.rooms.set(k, r);
+    });
   }
 
-  sweep(now) {
-    for (const [k, r] of this.rooms) if (now - r.seen > TTL_MS) this.rooms.delete(k);
+  async sweep(now) {
+    const gone = [...this.rooms].filter(([, r]) => now - r.seen > TTL_MS).map(([k]) => k);
+    for (const k of gone) this.rooms.delete(k);
+    for (let i = 0; i < gone.length; i += 128) await this.storage.delete(gone.slice(i, i + 128));
   }
 
   async fetch(request) {
     const url = new URL(request.url);
     const now = Date.now();
-    this.sweep(now);
+    await this.sweep(now);
 
     if (request.method === "GET" && url.pathname === "/v1/rooms") {
       const rooms = [...this.rooms.values()]
@@ -75,6 +82,7 @@ export class RoomList {
 
     if (url.pathname === "/v1/remove") {
       this.rooms.delete(key);
+      await this.storage.delete(key);
       return json({ ok: true });
     }
 
@@ -87,7 +95,9 @@ export class RoomList {
       for (const r of this.rooms.values()) if (r.address === address) mine++;
       if (mine >= MAX_PER_ADDRESS) return json({ error: "too many rooms from this address" }, 429);
     }
-    this.rooms.set(key, { name, address, port, players, max, version, seen: now });
+    const room = { name, address, port, players, max, version, seen: now };
+    this.rooms.set(key, room);
+    await this.storage.put(key, room);
     return json({ ok: true, address, ttl: TTL_MS / 1000 });
   }
 }

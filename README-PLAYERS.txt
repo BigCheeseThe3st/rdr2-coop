@@ -51,9 +51,10 @@ PLAYING TOGETHER
        Server=the address the host gives you
        Password=the host's password
      On the same home network, use the host PC's local address (192.168...).
-  Naming your game in the browser (host): RoomName=. Listing it online
-     (Public=Yes) works once the online room list is live; anyone will then see
-     it and your internet address in the browser, and still need your password.
+  Listing your game online (host): Public=Yes (the installers ask), and
+     RoomName= for its name. Anyone can then see it and your internet address
+     in the browser; they still need your password to join. It drops off a
+     few minutes after your game closes.
   If the host's game closes, the session ends for everyone until it's back.
 
 RUNNING A SEPARATE SERVER (optional: always on, e.g. a Raspberry Pi or VPS)

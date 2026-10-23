@@ -73,7 +73,7 @@ static class Setup
             Console.WriteLine("  The two didn't match (or were empty); try again.");
         }
         bool host = Yes("Do you usually host (your story, missions and enRage world are the shared ones)?", runServer);
-        bool listed = false;   // shortcut: the online room list isn't live yet; ask here once it is
+        bool listed = runServer && Yes("List your game in the online server browser (anyone can find it; they still need the password)?", false);
 
         Console.WriteLine("\nInstalling:");
         InstallScriptHook(game);

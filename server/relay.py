@@ -58,7 +58,7 @@ MAX_NAME = 32
 # answer is never bigger than the question: no use for amplification attacks)
 # and servers answer ANSWER + protocol version, players, max players, room name.
 QUERY, ANSWER, QUERY_SIZE = b"RDCQ", b"RDCA", 160
-DEFAULT_LIST_SERVER = ""   # the online room list (list-server/), once it's deployed
+DEFAULT_LIST_SERVER = "https://rdr2coop-rooms.beese.workers.dev"   # the online room list (list-server/)
 
 HELLO, CHALLENGE, AUTH, WELCOME, REJECT, STATE, BYE, WORLD, HIT, ROSTER, PARTY, APPEARANCE, OBJECTIVES, ACTION, NOTICE, ENTITY_LOOK = range(1, 17)
 GUEST, HOST = 0, 1

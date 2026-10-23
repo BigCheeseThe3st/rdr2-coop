@@ -35,9 +35,9 @@ namespace RDR2Coop.Mod
             public uint AppliedLook;
         }
 
-        const float PuppetRange = 400f;
-        // The online room list (list-server/); empty until it's deployed. ListServer= in the ini overrides.
-        const string DefaultListServer = "";   // further than this: no puppet (the area isn't loaded)
+        const float PuppetRange = 400f;   // further than this: no puppet (the area isn't loaded)
+        // The online room list (list-server/). ListServer= in the ini overrides; "off" turns it off.
+        const string DefaultListServer = "https://rdr2coop-rooms.beese.workers.dev";
 
         readonly Stopwatch _clock = Stopwatch.StartNew();
         readonly Dictionary<byte, Remote> _remotes = new Dictionary<byte, Remote>();
@@ -96,6 +96,7 @@ namespace RDR2Coop.Mod
             bool preferHost = ini.Get("Coop", "PreferHost", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
             string appearAs = ini.Get("Coop", "AppearAs", "");
             string listServer = ini.Get("Coop", "ListServer", DefaultListServer).Trim();
+            if (listServer.Equals("off", StringComparison.OrdinalIgnoreCase)) listServer = "";
             if (ini.Get("Coop", "RunServer", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase))
             {
                 bool listed = ini.Get("Coop", "Public", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase) && listServer.Length > 0;

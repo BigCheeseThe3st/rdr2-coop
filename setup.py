@@ -373,7 +373,7 @@ def main():
             break
         say("  The two didn't match (or were empty); try again.")
     host = yes("Do you usually host (your story, missions and enRage world are the shared ones)?", default=run_server)
-    public = False   # shortcut: the online room list isn't live yet; ask here once it is
+    public = run_server and yes("List your game in the online server browser (anyone can find it; they still need the password)?", default=False)
 
     say("\nInstalling:")
     install_scripthook(game)

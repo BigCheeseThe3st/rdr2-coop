@@ -8,8 +8,9 @@ Nexus page: https://www.nexusmods.com/reddeadredemption2/mods/11238
 
 ## Download
 From [Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases):
-- **Windows:** `RDR2-Coop-Windows-<version>.zip`: the mod, the server and
-  `RDR2CoopSetup.exe`, which installs everything (see README-WINDOWS.txt inside).
+- **Windows:** `RDR2-Coop-Windows-<version>.zip`: the mod, the server, the
+  unofficial enRage co-op patch and `RDR2CoopSetup.exe`, which installs everything
+  (see README-WINDOWS.txt inside).
 - **Linux:** `RDR2-Coop-Full-<version>.zip`: the mod, the server, the Linux
   installer (`python3 setup.py`) and the unofficial enRage co-op patch.
 - `RDR2-Coop-<version>.zip`, `RDR2-Coop-Server-<version>.zip`,
