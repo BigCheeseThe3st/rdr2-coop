@@ -48,4 +48,4 @@ PreferHost, AppearAs, [Net] timings, keys). Log: `scripts/RDR2Coop.log` in the g
 `mono build/FakePartner.exe 127.0.0.1 27450 walk|run|ride`. Insert reloads scripts in-game.
 
 ## Licence
-MIT (see LICENSE). Building it yourself: BUILDING.md.
+MIT (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.
