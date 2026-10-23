@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The co-op mod: a ScriptHookRDR2DotNet V2 script (.NET Framework 4.8).
+       dotnet build src/RDR2Coop.csproj -c Release   (Windows or Linux)
+       Needs lib/ScriptHookRDRNetAPI.dll from ScriptHookRDR2DotNet V2 2.2.0
+       (build.sh downloads it). -->
+  <PropertyGroup>
+    <TargetFramework>net48</TargetFramework>
+    <AssemblyName>RDR2Coop</AssemblyName>
+    <OutputType>Library</OutputType>
+    <LangVersion>7.3</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Net/*.cs;Mod/*.cs;../build/BuildInfo.cs" />
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="ScriptHookRDRNetAPI"><HintPath>../lib/ScriptHookRDRNetAPI.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <Target Name="BuildInfo" BeforeTargets="BeforeBuild">
+    <!-- The version from VERSION, baked in for the log and F10. -->
+    <ReadLinesFromFile File="../VERSION"><Output TaskParameter="Lines" PropertyName="CoopVersion" /></ReadLinesFromFile>
+    <WriteLinesToFile File="../build/BuildInfo.cs" Overwrite="true"
+      Lines="namespace RDR2Coop { static class BuildInfo { public const string Version = &quot;$(CoopVersion.Trim())&quot;%3B } }" />
+  </Target>
+</Project>

@@ -1,0 +1,44 @@
+# Building RDR2 Co-op from source
+
+Everything compiled in the download comes from this repository:
+
+| File in the download | Source | Built by |
+|---|---|---|
+| `scripts/RDR2Coop.dll` (the mod) | `src/Net`, `src/Mod` | `src/RDR2Coop.csproj` |
+| `setup.py`, `server/relay.py`, `server/setup-server.sh` | as is (Python / shell, not compiled) | - |
+
+Not built here (third-party, unmodified):
+- `scripthookdotnet/*`: ScriptHookRDR2DotNet V2 2.2.0 by crosire and Halen84
+  (zlib licence), from https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases/tag/2.2.0
+  (the files inside `ScriptHookRDR2DotNet-V2.rar`).
+- ScriptHookRDR2 by Alexander Blade is not in the download; the Linux installer fetches it from
+  https://www.dev-c.com/rdr2/scripthookrdr2/ and check its SHA-256.
+
+## With the .NET SDK (Windows or Linux)
+
+Needs the .NET SDK 6 or newer (it fetches the .NET Framework 4.8 reference
+assemblies itself).
+
+1. Put `ScriptHookRDRNetAPI.dll` from the ScriptHookRDR2DotNet V2 2.2.0 release in `lib/`.
+2. Build:
+   ```
+   dotnet build src/RDR2Coop.csproj -c Release
+   ```
+   Output: `src/bin/Release/net48/RDR2Coop.dll`.
+
+## With Mono (Linux, the way releases are made)
+
+```
+./build.sh
+```
+Downloads `lib/ScriptHookRDRNetAPI.dll` if missing, builds `dist/scripts/RDR2Coop.dll`
+against the .NET Framework 4.8 reference assemblies, and runs the network tests.
+`tools/make-release.sh` builds the download zips.
+
+(`tools/WinSetup` holds a Windows installer that isn't shipped:
+`dotnet build tools/WinSetup/RDR2CoopSetup.csproj -c Release`.)
+
+## Tests
+
+- Mod and network protocol: `./build.sh` runs `build/NetTests.exe` (Mono).
+- Server: `cd server && python3 test_relay.py`.

@@ -1,0 +1,44 @@
+# systemd unit for the RDR2 co-op relay. setup-server.sh installs it with the
+# port filled in; it runs as an unprivileged system user with no shell and can
+# only open UDP/TCP sockets.
+[Unit]
+Description=RDR2 co-op relay server (udp/@PORT@)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=rdr2coop
+Group=rdr2coop
+ExecStart=/usr/bin/python3 -u /opt/rdr2coop/relay.py --port @PORT@ --password-file /etc/rdr2coop/password
+Restart=on-failure
+RestartSec=5
+TasksMax=16
+MemoryMax=64M
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectKernelLogs=yes
+ProtectControlGroups=yes
+ProtectClock=yes
+ProtectHostname=yes
+ProtectProc=invisible
+ProcSubset=pid
+RestrictNamespaces=yes
+RestrictRealtime=yes
+RestrictSUIDSGID=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+RestrictAddressFamilies=AF_INET AF_INET6
+CapabilityBoundingSet=
+AmbientCapabilities=
+SystemCallArchitectures=native
+SystemCallFilter=@system-service
+SystemCallFilter=~@privileged @resources
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

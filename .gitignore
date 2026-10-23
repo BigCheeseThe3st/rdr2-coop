@@ -1,0 +1,13 @@
+lib/
+dist/
+build/
+*.exe
+vendor/
+decompiled/
+server/.password
+server/.password-online
+recordings/
+release/
+__pycache__/
+bin/
+obj/
