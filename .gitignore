@@ -11,3 +11,5 @@ release/
 __pycache__/
 bin/
 obj/
+list-server/.wrangler/
+node_modules/

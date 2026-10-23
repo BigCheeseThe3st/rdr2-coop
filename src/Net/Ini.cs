@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Text.RegularExpressions;
 
 namespace RDR2Coop.Net
 {
@@ -33,5 +34,21 @@ namespace RDR2Coop.Net
 
         public int Get(string section, string key, int fallback) =>
             int.TryParse(Get(section, key, ""), out int v) ? v : fallback;
+
+        // Sets [Coop] key=value lines in the file, keeping its comments and other
+        // settings (the same rules as the installers).
+        public static void SetCoop(string path, IDictionary<string, string> values)
+        {
+            string text = File.Exists(path) ? File.ReadAllText(path) : "[Coop]\r\n";
+            foreach (var kv in values)
+            {
+                var line = new Regex("^" + Regex.Escape(kv.Key) + "=[^\\r\\n]*", RegexOptions.Multiline);
+                var coop = new Regex(@"^\[Coop\][ \t]*\r?$", RegexOptions.Multiline);
+                if (line.IsMatch(text)) text = line.Replace(text, m => kv.Key + "=" + kv.Value, 1);
+                else if (coop.IsMatch(text)) text = coop.Replace(text, m => m.Value.TrimEnd('\r') + "\r\n" + kv.Key + "=" + kv.Value, 1);
+                else text = "[Coop]\r\n" + kv.Key + "=" + kv.Value + "\r\n" + text;
+            }
+            File.WriteAllText(path, text);
+        }
     }
 }

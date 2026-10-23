@@ -144,6 +144,9 @@ namespace RDR2Coop.Mod
     sealed class ObjectiveScan
     {
         const int PerTick = 400, Limit = 1 << 20;
+        // Off unless [Testing] ObjectiveScan=Yes: probing handles that were never
+        // given out crashed ScriptHook (23 Oct, a guest rejoining as host).
+        public static bool Enabled;
         int _cursor = 1;
         HashSet<int> _pass = new HashSet<int>(), _baseline = new HashSet<int>();
         bool _off, _haveBaseline;
@@ -152,7 +155,7 @@ namespace RDR2Coop.Mod
         // True when Current changed (checked after each full pass).
         public bool Tick(bool inMission)
         {
-            if (_off || Blips.MaxHandle == 0) return false;   // no marker made yet: the handle range is unknown
+            if (!Enabled || _off || Blips.MaxHandle == 0) return false;   // no marker made yet: the handle range is unknown
             if (Blips.MaxHandle > Limit)
             {
                 _off = true;
@@ -176,7 +179,7 @@ namespace RDR2Coop.Mod
                 return true;
             }
             var me = Game.Player.Character.Position;
-            var now = seen.Where(b => !_baseline.Contains(b) && !MAP._IS_BLIP_ATTACHED_TO_ANY_ENTITY(b))
+            var now = seen.Where(b => !_baseline.Contains(b) && MAP.DOES_BLIP_EXIST(b) && !MAP._IS_BLIP_ATTACHED_TO_ANY_ENTITY(b))
                           .Select(b => MAP.GET_BLIP_COORDS(b))
                           .Where(p => p.X != 0f || p.Y != 0f)
                           .OrderBy(p => p.DistanceTo(me))

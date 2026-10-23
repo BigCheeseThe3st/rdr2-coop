@@ -47,6 +47,7 @@ static class NetTests
         Run("world buffer blends vehicles incl. rotation", WorldBufferVehicles);
         Run("authority: alone, host first, lowest id, hysteresis", AuthorityBasics);
         Run("authority: chains end on the real owner, never loop", AuthorityChains);
+        Run("built-in server answers padded browser queries only", BrowserQuery);
         // The same server tests against relay.py and the server built into the mod.
         foreach (bool builtIn in new[] { false, true })
             using (var server = RelayServer.Start(builtIn))
@@ -459,6 +460,20 @@ static class NetTests
         Check(Authority.Pick(3, new Vec3(0, 0, 0), 9, loop, 3) == 3, "a chain back to me means I run it");
         var cycle = new System.Collections.Generic.Dictionary<byte, OtherPlayer> { [1] = O(10, following: 2), [2] = O(20, following: 1) };
         Authority.Pick(3, new Vec3(0, 0, 0), 9, cycle, 3);   // must return, not spin
+    }
+
+    static void BrowserQuery()
+    {
+        var r = new Relay("pw", () => 0, null, "George's game");
+        var from = new System.Net.IPEndPoint(System.Net.IPAddress.Loopback, 5);
+        Check(r.Handle(Relay.QueryMagic.Concat(new byte[20]).ToArray(), from).Count == 0, "short query ignored");
+        var q = Relay.QueryMagic.Concat(new byte[Relay.QuerySize - 4]).ToArray();
+        var a = r.Handle(q, from);
+        Check(a.Count == 1 && a[0].to.Equals(from), "one answer, to the asker");
+        var ans = a[0].data;
+        Check(ans.Length <= q.Length, "answer no bigger than the question");
+        Check(ans[0] == 'R' && ans[3] == 'A' && BitConverter.ToInt32(ans, 4) == Protocol.Version && ans[8] == 0 && ans[9] == 4, "header, version, 0 of 4");
+        Check(System.Text.Encoding.UTF8.GetString(ans, 11, ans[10]) == "George's game", "room name");
     }
 
     sealed class RelayServer : IDisposable

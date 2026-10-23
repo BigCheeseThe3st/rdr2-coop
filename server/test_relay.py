@@ -173,6 +173,17 @@ class RelayTest(unittest.TestCase):
         self.join("Host", h)
         self.assertTrue(any(p.name == "Host" for p in self.r.players.values()), "real players still get in")
 
+    def test_browser_query_answered_only_when_padded(self):
+        self.join("Host", ("1.1.1.1", 1))
+        self.assertEqual(self.r.handle(R.QUERY + bytes(20), ("9.9.9.9", 5)), [], "short query: no answer (amplification)")
+        q = R.QUERY + bytes(R.QUERY_SIZE - 4)
+        [(ans, to)] = self.r.handle(q, ("9.9.9.9", 5))
+        self.assertEqual(to, ("9.9.9.9", 5))
+        self.assertLessEqual(len(ans), len(q), "answer never bigger than the question")
+        version, players, most = struct.unpack_from("<iBB", ans, 4)
+        name, _ = R.read_string(ans, 10)
+        self.assertEqual((ans[:4], version, players, most, name), (R.ANSWER, R.VERSION, 1, 4, "RDR2 Co-op server"))
+
     def test_hello_flood_is_rate_limited(self):
         outs = [self.r.handle(hello("spam"), ("4.4.4.4", p)) for p in range(30)]
         self.assertEqual(sum(1 for o in outs if o), 20)

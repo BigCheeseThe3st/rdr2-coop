@@ -206,7 +206,7 @@ def install_scripthook(game):
         say("  ScriptHookRDR2DotNet V2 2.2.0 installed")
 
 
-def install_coop(game, name, server, port, password, host, run_server=False):
+def install_coop(game, name, server, port, password, host, run_server=False, public=False):
     scripts = game / "scripts"
     scripts.mkdir(exist_ok=True)
     if not (HERE / "scripts/RDR2Coop.dll").is_file():
@@ -216,7 +216,8 @@ def install_coop(game, name, server, port, password, host, run_server=False):
     if not ini.exists() or "Server=" not in ini.read_text(errors="replace"):
         shutil.copy2(HERE / "scripts/RDR2Coop.ini", ini)
     set_ini(ini, {"Name": name, "Server": server, "Port": port, "Password": password,
-                  "PreferHost": "Yes" if host else "No", "RunServer": "Yes" if run_server else "No"})
+                  "PreferHost": "Yes" if host else "No", "RunServer": "Yes" if run_server else "No",
+                  "Public": "Yes" if public else "No"})
     say(f"  co-op mod installed; settings in {ini}")
 
 
@@ -372,10 +373,11 @@ def main():
             break
         say("  The two didn't match (or were empty); try again.")
     host = yes("Do you usually host (your story, missions and enRage world are the shared ones)?", default=run_server)
+    public = False   # shortcut: the online room list isn't live yet; ask here once it is
 
     say("\nInstalling:")
     install_scripthook(game)
-    install_coop(game, name, server, port, password, host, run_server)
+    install_coop(game, name, server, port, password, host, run_server, public)
     if run_server:
         say(f"  The server starts with your game and opens UDP {port} on your router by itself (UPnP);\n"
             "  F10 in game shows the address to give your friends. No UPnP on your router: forward UDP\n"

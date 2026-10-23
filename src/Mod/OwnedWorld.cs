@@ -32,8 +32,11 @@ namespace RDR2Coop.Mod
         // followers: the players showing our area, with their puppets here.
         public void Tick(ServerLink link, IDictionary<byte, Puppet> followers, IList<Vec3> followerPositions, long now)
         {
+            CoopScript.Trace("owned: shots");
             CountShots(now);
+            CoopScript.Trace("owned: stealth");
             if (MissionProbe.StoryMission) WatchForGuests(followers.Values, now);
+            CoopScript.Trace("owned: scan");
             if (now - _lastSendMs < _intervalMs || followers.Count == 0) return;
             _lastSendMs = now;
 
@@ -66,6 +69,7 @@ namespace RDR2Coop.Mod
             var points = new List<Vec3>(followerPositions) { CoopScript.ToNet(me.Position) };
             var picked = EntitySelector.Pick(candidates, points, WorldSnapshot.MaxEntities);
 
+            CoopScript.Trace("owned: vehicles");
             // Vehicles: ours and the followers' first, then those carrying NPCs we send.
             var playerVehicles = new HashSet<int> { Peds.VehicleOf(meH) };
             foreach (var p in followers.Values) playerVehicles.Add(Peds.VehicleOf(p.Handle));
@@ -108,6 +112,7 @@ namespace RDR2Coop.Mod
                     $"{vehicleCandidates.Count} vehicle candidates (of {allVehicles.Count} vehicles; pool list {World.GetAllVehicles().Length}) -> {pickedVehicles.Count} sent; " +
                     $"players at {string.Join(" ", points)}; followers {followers.Count}");
             }
+            CoopScript.Trace("owned: send");
             link.SendWorld(new WorldSnapshot { Seq = ++_seq, Entities = list, Vehicles = vehicles, Trains = trains });
             SendLooks(link, picked, list, followers.Count, now);
             SendNames(link, picked, list, now);

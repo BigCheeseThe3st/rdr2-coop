@@ -39,14 +39,20 @@ Load a story save; a subtitle says when you've joined. Settings live in
 
 ## Server
 The host's game runs it: `RunServer=Yes` in their RDR2Coop.ini (`src/Net/Relay.cs`,
-with UPnP from `src/Net/Upnp.cs`); friends point `Server=` at the host. For an
-always-on room there's the standalone `server/relay.py` (Python 3, no dependencies; Windows,
-macOS or Linux): `python3 relay.py --password YOUR-PASSWORD` (Windows:
-`py relay.py ...`), and forward UDP port 27460 for friends over the internet.
-See `server/README-SERVER.md` (Windows steps, `setup-server.sh` service install,
-security). The first player in hosts (PreferHost=Yes takes over when the host
-leaves); every game runs the area around its player and shares it when players
-are within 150 m (the host's game first).
+with UPnP from `src/Net/Upnp.cs`); friends point `Server=` at the host, or find it with
+the in-game server browser (F10 twice): servers on their network answer a broadcast, and
+hosts with `Public=Yes` appear in the online room list (`list-server/`, a Cloudflare
+Worker; `src/Net/RoomList.cs` is the game's side).
+
+For an always-on room there's the standalone `server/relay.py` (Python 3, no
+dependencies; Windows, macOS or Linux): `python3 relay.py --password YOUR-PASSWORD`
+(Windows: `py relay.py ...`; `--name`, `--public` for the browser), and forward UDP
+port 27460 for friends over the internet. See `server/README-SERVER.md` (Windows
+steps, `setup-server.sh` service install, security).
+
+The first player in hosts (PreferHost=Yes takes over when the host leaves); every
+game runs the area around its player and shares it when players are within 150 m
+(the host's game first).
 
 ## Build
 `./build.sh` compiles `dist/scripts/RDR2Coop.dll` with mono's csc against the

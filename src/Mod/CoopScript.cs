@@ -35,12 +35,19 @@ namespace RDR2Coop.Mod
             public uint AppliedLook;
         }
 
-        const float PuppetRange = 400f;   // further than this: no puppet (the area isn't loaded)
+        const float PuppetRange = 400f;
+        // The online room list (list-server/); empty until it's deployed. ListServer= in the ini overrides.
+        const string DefaultListServer = "";   // further than this: no puppet (the area isn't loaded)
 
         readonly Stopwatch _clock = Stopwatch.StartNew();
         readonly Dictionary<byte, Remote> _remotes = new Dictionary<byte, Remote>();
         ServerLink _link;
         BuiltInServer _builtIn;
+        ServerBrowser _browser;
+        Keys _browserKey;          // None: the status key pressed twice opens the browser
+        int _lastStatusKey;
+        string _iniPath, _name = "", _password = "";
+        bool _preferHost;
         OwnedWorld _owned;
         MirrorWorld _mirror;
         byte _owner;                 // whose game runs our area (our own id when ours)
@@ -81,15 +88,20 @@ namespace RDR2Coop.Mod
             if (!File.Exists(iniPath)) iniPath = Path.Combine(BaseDirectory, "RDR2Coop.ini");
             if (!File.Exists(iniPath)) Log("settings file not found next to the game or in scripts\\; using defaults");
             var ini = Ini.Load(iniPath);
+            _iniPath = iniPath;
             string name = ini.Get("Coop", "Name", Environment.UserName);
             string server = ini.Get("Coop", "Server", "127.0.0.1");
             int port = ini.Get("Coop", "Port", ServerLink.DefaultPort);
             string password = ini.Get("Coop", "Password", "");
             bool preferHost = ini.Get("Coop", "PreferHost", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
             string appearAs = ini.Get("Coop", "AppearAs", "");
+            string listServer = ini.Get("Coop", "ListServer", DefaultListServer).Trim();
             if (ini.Get("Coop", "RunServer", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase))
             {
-                _builtIn = BuiltInServer.Start(port, password, !ini.Get("Coop", "UPnP", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase), out string why);
+                bool listed = ini.Get("Coop", "Public", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase) && listServer.Length > 0;
+                string roomName = ini.Get("Coop", "RoomName", name + "'s game");
+                _builtIn = BuiltInServer.Start(port, password, !ini.Get("Coop", "UPnP", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase),
+                                               roomName, listed ? listServer : null, out string why);
                 if (why != null) { Log(why); Say(why); }
                 server = "127.0.0.1";   // our own server (or whatever already runs on that port here)
             }
@@ -102,12 +114,16 @@ namespace RDR2Coop.Mod
             _reviveKey = ParseKey(ini.Get("Keys", "Revive", "F7"), Keys.F7);
             _travelKey = ParseKey(ini.Get("Keys", "TravelTo", ""), Keys.None);
             _nemesisKey = ParseKey(ini.Get("Keys", "Nemeses", "F11"), Keys.F11);
+            _browserKey = ParseKey(ini.Get("Keys", "ServerBrowser", ""), Keys.None);   // Home, F6...: taken by the game
+            _browser = new ServerBrowser(port, listServer, IsOwnServer, _browserKey != Keys.None ? _browserKey : _statusKey);
             var to = ini.Get("Testing", "TravelTo", "-283,790,118").Split(',');
             _travelTo = to.Length == 3 && float.TryParse(to[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)
                 && float.TryParse(to[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ty)
                 && float.TryParse(to[2], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tz)
                 ? new Vector3(tx, ty, tz) : new Vector3(-283f, 790f, 118f);
             _travelName = ini.Get("Testing", "TravelName", "Valentine");
+            ObjectiveScan.Enabled = ini.Get("Testing", "ObjectiveScan", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
+            TraceOn = ini.Get("Testing", "TraceJoins", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
 
             int sendHz = Clamp(ini.Get("Net", "SendHz", 30), 5, 60);
             int worldHz = Clamp(ini.Get("Net", "WorldHz", 20), 2, 30);
@@ -123,7 +139,15 @@ namespace RDR2Coop.Mod
 
             _owned = new OwnedWorld(worldHz);
             _mirror = new MirrorWorld(_smoothingMs);
-            _link = new ServerLink(name, preferHost, password, server, port);
+            _name = name;
+            _preferHost = preferHost;
+            _password = password;
+            Connect(server, port, password);
+        }
+
+        void Connect(string server, int port, string password)
+        {
+            _link = new ServerLink(_name, _preferHost, password, server, port);
 
             _link.Joined += () =>
             {
@@ -133,18 +157,7 @@ namespace RDR2Coop.Mod
             _link.RosterChanged += OnRoster;
             _link.Disconnected += reason =>
             {
-                _party.Leave();
-                if (_down.IsDown) _down.GetUp(null, "disconnected");
-                foreach (var r in _remotes.Values) r.Puppet?.Delete();
-                _remotes.Clear();
-                _assist.Clear();
-                _enrage.Clear();
-                AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);   // stale handles could be reused by new peds
-                AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
-                AppDomain.CurrentDomain.SetData("rdr2coop.puppetNames", null);
-                _sharedPuppets = new int[0]; _sharedCopies = new int[0]; _sharedNames = new string[0];
-                _mirror.Clear();
-                _owner = 0;
+                ClearSession();
                 Say("Co-op: " + reason);
                 Log("disconnected: " + reason);
             };
@@ -194,6 +207,52 @@ namespace RDR2Coop.Mod
             Say(_status);
         }
 
+        // Everything that belonged to the session we were in.
+        void ClearSession()
+        {
+            _party.Leave();
+            if (_down.IsDown) _down.GetUp(null, "disconnected");
+            foreach (var r in _remotes.Values) r.Puppet?.Delete();
+            _remotes.Clear();
+            _assist.Clear();
+            _enrage.Clear();
+            AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);   // stale handles could be reused by new peds
+            AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
+            AppDomain.CurrentDomain.SetData("rdr2coop.puppetNames", null);
+            _sharedPuppets = new int[0]; _sharedCopies = new int[0]; _sharedNames = new string[0];
+            _mirror.Clear();
+            _owner = 0;
+        }
+
+        // From the server browser: leave this session (and stop our own server,
+        // since we're joining someone else's) and join the picked room. The
+        // choice is saved, so the next start goes straight back there.
+        void SwitchTo(Room room, string password)
+        {
+            Log($"browser: joining '{room.Name}' at {room.Address}:{room.Port}");
+            _link?.Dispose();
+            ClearSession();
+            _builtIn?.Dispose();
+            _builtIn = null;
+            _password = password;
+            try
+            {
+                Ini.SetCoop(_iniPath, new Dictionary<string, string> { { "Server", room.Address }, { "Port", room.Port.ToString() },
+                                                                       { "Password", password }, { "RunServer", "No" } });
+            }
+            catch (Exception e) { Log("couldn't save the room to the settings file: " + e.Message); }
+            Connect(room.Address, room.Port, password);
+        }
+
+        bool IsOwnServer(Room r)
+        {
+            var b = _builtIn;
+            if (b == null || !r.Lan || r.Port != b.Port) return false;
+            if (!System.Net.IPAddress.TryParse(r.Address, out var a)) return false;
+            return System.Net.IPAddress.IsLoopback(a) ||
+                   System.Net.Dns.GetHostAddresses(System.Net.Dns.GetHostName()).Any(x => x.Equals(a));
+        }
+
         Remote RemoteFor(byte id)
         {
             if (!_remotes.TryGetValue(id, out var r))
@@ -203,6 +262,8 @@ namespace RDR2Coop.Mod
 
         void OnRoster()
         {
+            _traceUntil = Environment.TickCount + 20000;
+            Trace("roster");
             var ids = new HashSet<byte>(_link.Roster.Select(e => e.Id));
             foreach (var id in _remotes.Keys.Where(id => !ids.Contains(id)).ToList())
             {
@@ -224,6 +285,12 @@ namespace RDR2Coop.Mod
             _missionProbe.Tick(now);
             string note = _builtIn?.TakeNote();
             if (note != null) Say(note);
+            if (_browser.IsOpen)
+            {
+                var room = _browser.Tick(_password, out string pw);
+                if (room != null) SwitchTo(room, pw);
+            }
+            Trace("tick: poll");
             _link.Poll(now);
             if (_link.State != LinkState.Connected) return;
 
@@ -232,6 +299,7 @@ namespace RDR2Coop.Mod
             byte myId = _link.MyId;
             var myPos = ToNet(me.Position);
 
+            Trace("tick: authority");
             // Whose game runs our area?
             var others = new Dictionary<byte, OtherPlayer>();
             foreach (var kv in _remotes)
@@ -248,6 +316,7 @@ namespace RDR2Coop.Mod
             if (now - _lastSendMs >= _sendEveryMs)
             {
                 _lastSendMs = now;
+                Trace("tick: capture");
                 var s = Capture(me, now);
                 s.Following = owner == myId ? (byte)0 : owner;
                 int veh = Peds.VehicleOf(me.Handle);
@@ -268,6 +337,7 @@ namespace RDR2Coop.Mod
                 _link.SendState(s);
             }
 
+            Trace("tick: look");
             // Our look, when it changes (and every 15 s for anyone who joined late).
             if (_appearAs == 0 && now - _lastLookCheck > 2000)
             {
@@ -297,6 +367,7 @@ namespace RDR2Coop.Mod
                 var st = r.Interp.Sample(now);
                 if (r.Puppet == null || r.Puppet.PedModel != st.PedModel)
                 {
+                    Trace($"puppet {kv.Key}: spawn");
                     r.Puppet?.Delete();
                     r.Puppet = Puppet.Spawn(st.PedModel, ENTITY.GET_ENTITY_MODEL(me.Handle), ToGame(st.Position), st.Heading, _link.NameOf(kv.Key));
                     r.AppliedLook = 0;
@@ -305,10 +376,12 @@ namespace RDR2Coop.Mod
                 // Their clothes, once we have them (only for the same model).
                 if (r.HasLook && r.Look.Model == r.Puppet.PedModel && r.Look.Signature() != r.AppliedLook)
                 {
+                    Trace($"puppet {kv.Key}: look");
                     Looks.Apply(r.Puppet.Handle, r.Look);
                     r.AppliedLook = r.Look.Signature();
                     Log($"{_link.NameOf(kv.Key)}'s look applied ({r.Look.Tags.Count} pieces)");
                 }
+                Trace($"puppet {kv.Key}: follow");
                 int vehicle = VehicleFor(r.Last, kv.Key, owner, myId);
                 r.Puppet.Follow(st, now, vehicle);
                 // Our game runs the area and they drive one of our real vehicles:
@@ -321,9 +394,11 @@ namespace RDR2Coop.Mod
                         st.MountHeading, !VEHICLE.IS_THIS_MODEL_A_BOAT(ENTITY.GET_ENTITY_MODEL(vehicle)),
                         VEHICLE.IS_DRAFT_VEHICLE(vehicle), r.Puppet.Handle, ref r.LastDriveMs, now);
                 }
+                Trace($"puppet {kv.Key}: catch hits");
                 r.Puppet.SetCatchHits(owner == myId && r.Last.Following == myId);
                 puppets[kv.Key] = r.Puppet;
             }
+            Trace("tick: share with enRage");
             ShareWithEnrage(puppets.Where(kv => kv.Value.Exists).Select(kv => (kv.Value.Handle, _link.NameOf(kv.Key))), _mirror.CopyHandles(), now);
 
             if (owner == myId)
@@ -336,7 +411,9 @@ namespace RDR2Coop.Mod
                     followers[kv.Key] = kv.Value;
                     positions.Add(_remotes[kv.Key].Last.Position);
                 }
+                Trace("tick: owned area");
                 _owned.Tick(_link, followers, positions, now);
+                Trace("tick: take hits");
                 foreach (var kv in followers)
                 {
                     int damage = kv.Value.TakeHits(me.Handle, out int bone);
@@ -345,16 +422,21 @@ namespace RDR2Coop.Mod
             }
             else
             {
+                Trace("tick: mirror");
                 _mirror.Tick(_link, owner, puppets, now);
             }
 
             PlayerState? hostState = _remotes.TryGetValue(_link.HostId, out var hr) && hr.HasLast ? hr.Last : (PlayerState?)null;
+            Trace("tick: party");
             _party.Tick(_link, hostState, now);
+            Trace("tick: enRage link");
             _enrage.Tick(_link, _down.IsDown, now);
             if (owner != myId) _enrage.DrawNames(owner, _mirror.HandleOf);
+            Trace("tick: mission assist");
             if (_link.IAmHost) _assist.HostTick(_link, id => _remotes.TryGetValue(id, out var x) && x.HasLast ? x.Last : (PlayerState?)null, now);
             else _assist.GuestTick(_link, _party.IsMember, hostState, now);
 
+            Trace("tick: down");
             // Down / revive.
             Vector3? ownerPos = owner != myId && _remotes.TryGetValue(owner, out var or) && or.HasLast ? ToGame(or.Last.Position) : (Vector3?)null;
             _down.Tick(owner != myId, ownerPos, owner != myId && _mirror.CombatNear(me.Position, 150f), _link.NameOf(owner), now);
@@ -364,6 +446,7 @@ namespace RDR2Coop.Mod
                 _lastRevivePrompt = now;
                 Say($"Co-op: press {_reviveKey} to revive {_link.NameOf(downed)}");
             }
+            Trace("tick: end");
         }
 
         // enRage (with its co-op patch) reads these from the script domain: the
@@ -460,6 +543,9 @@ namespace RDR2Coop.Mod
         void OnKeyDown(object sender, KeyEventArgs e)
         {
             if (_link == null) return;
+            if (_browser.IsOpen && (e.KeyCode == _browserKey || e.KeyCode == _statusKey)) { _browser.Toggle(); return; }
+            if (_browserKey != Keys.None && e.KeyCode == _browserKey) { _browser.Toggle(); return; }
+            if (_browser.OnKey(e.KeyCode)) return;
             if (e.KeyCode == _partyKey) { _party.Toggle(_link); return; }
             if (e.KeyCode == _travelKey) { _travelPending = true; return; }
             if (e.KeyCode == _nemesisKey && _enrage.RequestList(_link)) { Say($"Co-op: asking {_link.NameOf(_link.HostId)}'s enRage about your nemeses"); return; }
@@ -475,10 +561,17 @@ namespace RDR2Coop.Mod
             if (e.KeyCode == Keys.Y || e.KeyCode == Keys.N) _party.OnKey(e.KeyCode, _link);
             if (e.KeyCode == _statusKey)
             {
+                if (_browserKey == Keys.None && Environment.TickCount - _lastStatusKey < 3000)
+                {
+                    _lastStatusKey = 0;
+                    _browser.Toggle();
+                    return;
+                }
+                _lastStatusKey = Environment.TickCount;
                 string players = string.Join(", ", _link.Roster.Select(p => p.Name + (p.Role == PlayerRole.Host ? " (host)" : "")));
                 string area = _owner == 0 ? "-" : _owner == _link.MyId ? "your game" : _link.NameOf(_owner) + "'s game";
                 Say($"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
-                    (_builtIn != null ? " | " + _builtIn.Status : ""));
+                    (_builtIn != null ? " | " + _builtIn.Status : "") + (_browserKey == Keys.None ? $" | {_statusKey} again: server browser" : ""));
             }
             else if (e.KeyCode == _spawnWagonKey)
             {
@@ -561,12 +654,25 @@ namespace RDR2Coop.Mod
 
         static void Say(string text) => Screen.DisplaySubtitle(text);
 
+        // [Testing] TraceJoins=Yes: for 20 s after anyone joins or leaves, log a
+        // marker before each step of the tick, so the last line before a
+        // ScriptHook error names the step that failed.
+        internal static bool TraceOn;
+        static int _traceUntil;
+        internal static void Trace(string step)
+        {
+            if (TraceOn && Environment.TickCount - _traceUntil < 0) Log("trace " + step);
+        }
+
+        static readonly object LogLock = new object();   // the server and UPnP threads log too
+
         internal static void Log(string line)
         {
             try
             {
-                File.AppendAllText(Path.Combine("scripts", "RDR2Coop.log"),
-                    DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + line + Environment.NewLine);
+                lock (LogLock)
+                    File.AppendAllText(Path.Combine("scripts", "RDR2Coop.log"),
+                        DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + line + Environment.NewLine);
             }
             catch (Exception) { }
         }

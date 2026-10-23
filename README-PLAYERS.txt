@@ -43,10 +43,17 @@ PLAYING TOGETHER
      Windows: the first time, Windows asks whether RDR2 may use the network;
      the box can hide behind the game, so alt-tab and click Allow (tick
      Public too). The Windows installer sets this up for you.
-  Friends, in scripts/RDR2Coop.ini:
+  Friends: press F10 twice in game to open the server browser. It shows co-op
+     games on your home network, and games whose host set Public=Yes online.
+     Pick one with the arrow keys, press Enter and type its password. The
+     choice is saved, so next time you join it straight away.
+     Or by hand, in scripts/RDR2Coop.ini:
        Server=the address the host gives you
        Password=the host's password
      On the same home network, use the host PC's local address (192.168...).
+  Naming your game in the browser (host): RoomName=. Listing it online
+     (Public=Yes) works once the online room list is live; anyone will then see
+     it and your internet address in the browser, and still need your password.
   If the host's game closes, the session ends for everyone until it's back.
 
 RUNNING A SEPARATE SERVER (optional: always on, e.g. a Raspberry Pi or VPS)
@@ -68,6 +75,7 @@ RUNNING A SEPARATE SERVER (optional: always on, e.g. a Raspberry Pi or VPS)
 
 IN GAME
   Load your story save; a subtitle says when you've joined.
+  F10 twice opens the server browser,
   Insert reloads the mod, F10 shows co-op status, F8 starts a mission party,
   F7 revives a downed partner, F9 teleports to your partner, F11 (guests) lists the host's enRage nemeses who have a grudge against you.
 

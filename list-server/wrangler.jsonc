@@ -1,0 +1,8 @@
+// The online room list for the in-game server browser (see README.md here).
+{
+  "name": "rdr2coop-rooms",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": { "bindings": [{ "name": "ROOMS", "class_name": "RoomList" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["RoomList"] }]
+}

@@ -18,6 +18,11 @@ python3 relay.py --password pick-a-long-password      (Windows: py relay.py ...)
 ```
 
 Or keep the password in a file: `python3 relay.py --password-file password.txt`.
+Players on the same network find it in the in-game server browser (F10 twice).
+`--name "Room name"` names it there; `--public --list-server URL` also lists it
+in the browser's online list (anyone can see it and its address; they still
+need the password).
+
 It listens on UDP port 27460 (`--port` to change it). Leave the window open
 while you play. Works on Linux, Windows and macOS.
 

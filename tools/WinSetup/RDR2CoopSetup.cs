@@ -73,6 +73,7 @@ static class Setup
             Console.WriteLine("  The two didn't match (or were empty); try again.");
         }
         bool host = Yes("Do you usually host (your story, missions and enRage world are the shared ones)?", runServer);
+        bool listed = false;   // shortcut: the online room list isn't live yet; ask here once it is
 
         Console.WriteLine("\nInstalling:");
         InstallScriptHook(game);
@@ -84,7 +85,7 @@ static class Setup
             File.Copy(Path.Combine(Here, "scripts", "RDR2Coop.ini"), ini, true);
         SetIni(ini, new Dictionary<string, string> { { "Name", name }, { "Server", server }, { "Port", port },
                                                      { "Password", password }, { "PreferHost", host ? "Yes" : "No" },
-                                                     { "RunServer", runServer ? "Yes" : "No" } });
+                                                     { "RunServer", runServer ? "Yes" : "No" }, { "Public", listed ? "Yes" : "No" } });
         Console.WriteLine("  co-op mod installed; settings in " + ini);
         if (runServer)
         {

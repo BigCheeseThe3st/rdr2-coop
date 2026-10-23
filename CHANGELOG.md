@@ -3,6 +3,25 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.0 (23 Oct 2026) - protocol 13
+- Server browser: F10 twice in game lists co-op games on your home network (and,
+  once the online room list is live, games whose host chose Public=Yes). Pick one, Enter, type its password (the
+  game's own keyboard) and you're in; the choice is saved for next time.
+  Joining from the browser leaves your current game and stops your own server.
+- Hosts: RoomName= names your game in the browser. Public=Yes will list it
+  online once the online room list is live (ListServer=).
+- relay.py: --name for the browser, --public --list-server URL to list it online.
+- Still plays with 0.4.x/0.5.0 and their servers (the browser just won't find
+  servers older than 0.6.0 on your network).
+- Fixed: the host's game could stop all script mods (a ScriptHook "exception
+  occurred" box) when a guest dropped out and joined again. The cause was the
+  mission-marker scan, which checked map-marker handles the game never gave out;
+  it's now off (ObjectiveScan=Yes under [Testing] turns it back on), so guests
+  don't see the host's mission markers for now.
+- Log lines from the built-in server no longer get lost now and then.
+- TraceJoins=Yes under [Testing] logs each step of the mod for 20 s after anyone
+  joins or leaves (for finding crashes like that one).
+
 ## 0.5.0 (23 Oct 2026) - protocol 13
 - No separate server needed: RunServer=Yes in the host's RDR2Coop.ini runs the
   co-op server inside their game. It asks the router to open the port (UPnP,

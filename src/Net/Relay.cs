@@ -28,6 +28,14 @@ namespace RDR2Coop.Net
             public double LastHeard;
         }
 
+        // Server browser, home network: a game broadcasts a query ("RDCQ", padded
+        // so the answer is never bigger than the question: no use for
+        // amplification attacks) and servers answer "RDCA" + protocol version,
+        // players, max players and the room name.
+        public const int QuerySize = 160;
+        public static readonly byte[] QueryMagic = { (byte)'R', (byte)'D', (byte)'C', (byte)'Q' };
+
+        readonly string _roomName;
         readonly byte[] _key;
         readonly Func<double> _clock;
         readonly Action<string> _log;
@@ -38,8 +46,9 @@ namespace RDR2Coop.Net
         readonly RandomNumberGenerator _rng = RandomNumberGenerator.Create();
         double _lastSweep;
 
-        public Relay(string password, Func<double> clock, Action<string> log)
+        public Relay(string password, Func<double> clock, Action<string> log, string roomName = null)
         {
+            _roomName = string.IsNullOrWhiteSpace(roomName) ? "RDR2 Co-op server" : roomName;
             _key = Encoding.UTF8.GetBytes(password ?? "");
             _clock = clock;
             _log = log ?? (_ => { });
@@ -100,6 +109,8 @@ namespace RDR2Coop.Net
         public List<(byte[] data, IPEndPoint to)> Handle(byte[] data, IPEndPoint addr)
         {
             double now = _clock();
+            if (data.Length >= QuerySize && data[0] == 'R' && data[1] == 'D' && data[2] == 'C' && data[3] == 'Q')
+                return new List<(byte[], IPEndPoint)> { (QueryAnswer(), addr) };
             if (data.Length < 7 || data.Length > MaxPacket || data[0] != 'R' || data[1] != 'D' || data[2] != 'C' || data[3] != 'O')
                 return None;
             var type = (PacketType)data[4];
@@ -177,6 +188,10 @@ namespace RDR2Coop.Net
             return output;
         }
 
+        byte[] QueryAnswer() =>
+            Cat(new[] { (byte)'R', (byte)'D', (byte)'C', (byte)'A' }, BitConverter.GetBytes(Protocol.Version),
+                new[] { (byte)_players.Count, (byte)MaxPlayers }, ShortString(_roomName));
+
         byte[] Welcome(Player p)
         {
             var h = HostPlayer();
@@ -224,10 +239,10 @@ namespace RDR2Coop.Net
         public int PlayerCount => _relay.PlayerCount;
 
         // Throws SocketException when the port is taken.
-        public RelayHost(int port, string password, Action<string> log)
+        public RelayHost(int port, string password, Action<string> log, string roomName = null)
         {
             var clock = System.Diagnostics.Stopwatch.StartNew();
-            _relay = new Relay(password, () => clock.Elapsed.TotalSeconds, log);
+            _relay = new Relay(password, () => clock.Elapsed.TotalSeconds, log, roomName);
             _udp = new UdpClient(new IPEndPoint(IPAddress.Any, port)) { Client = { ReceiveTimeout = 1000 } };
             ServerLink.IgnoreConnectionResets(_udp);
             Port = ((IPEndPoint)_udp.Client.LocalEndPoint).Port;

@@ -6,6 +6,7 @@
 //   mono build/FakePlayer.exe <server> <port> <password> owner party
 //   mono build/FakePlayer.exe <server> <port> <password> owner down
 //   mono build/FakePlayer.exe <server> <port> <password> partner downed
+//   mono build/FakePlayer.exe <server> <port> <password> partner nemeses   (asks the host's enRage, like F11)
 // down: the hostile hits you for 40 every 2 s until you're down, keeps
 //   "shooting" for 12 s more, then stops (you should get up ~10 s later).
 // downed: lies down 3 m from you until you revive it (F7 next to it).
@@ -66,7 +67,12 @@ static class FakePlayer
         int snapshots = 0;
         var damage = new Dictionary<ushort, int>();
 
-        link.Joined += () => Console.WriteLine($"joined as player {link.MyId}, host {link.HostId}");
+        link.Joined += () =>
+        {
+            Console.WriteLine($"joined as player {link.MyId}, host {link.HostId}");
+            // partner nemeses: ask the host's enRage for our nemeses, like a guest's F11.
+            if (!owner && mode == "nemeses") link.SendNotice(link.HostId, NoticeKind.NemesesRequest, "");
+        };
         link.RosterChanged += () =>
         {
             Console.WriteLine("roster: " + string.Join(", ", link.Roster.Select(e => $"{e.Id} {e.Name}{(e.Role == PlayerRole.Host ? " (host)" : "")}")));

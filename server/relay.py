@@ -24,17 +24,26 @@ everyone else is a guest; a guest who prefers hosting is promoted when the host
 leaves. The server stamps the sender id on every packet it forwards.
 
   python3 relay.py --password-file password.txt [--port 27460] [--bind 0.0.0.0]
+                   [--name "Room name"] [--public --list-server URL]
+
+--public lists the room in the in-game server browser's online list (it
+re-announces every minute and drops off a few minutes after the relay stops).
 
 Python 3.6+, no other dependencies; Linux, Windows or macOS. See README-SERVER.md.
 """
 import argparse
 import hashlib
 import hmac
+import json
 import os
+import signal
 import socket
 import struct
 import sys
+import threading
 import time
+import urllib.error
+import urllib.request
 
 MAGIC = b"RDCO"
 VERSION = 13
@@ -45,6 +54,11 @@ MAX_PENDING = 256      # half-open logins held at once
 BROADCAST = 255
 MAX_PACKET = 1400
 MAX_NAME = 32
+# Server browser, home network: a game broadcasts a query (QUERY, padded so the
+# answer is never bigger than the question: no use for amplification attacks)
+# and servers answer ANSWER + protocol version, players, max players, room name.
+QUERY, ANSWER, QUERY_SIZE = b"RDCQ", b"RDCA", 160
+DEFAULT_LIST_SERVER = ""   # the online room list (list-server/), once it's deployed
 
 HELLO, CHALLENGE, AUTH, WELCOME, REJECT, STATE, BYE, WORLD, HIT, ROSTER, PARTY, APPEARANCE, OBJECTIVES, ACTION, NOTICE, ENTITY_LOOK = range(1, 17)
 GUEST, HOST = 0, 1
@@ -78,8 +92,9 @@ class Relay:
     """All routing logic, with no sockets, so tests can drive it directly.
     handle() returns a list of (bytes, addr) to send."""
 
-    def __init__(self, password, clock=time.monotonic, log=print):
+    def __init__(self, password, clock=time.monotonic, log=print, name="RDR2 Co-op server"):
         self.key = password.encode()
+        self.name = name
         self.clock = clock
         self.log = log
         self.players = {}        # addr -> Player
@@ -116,6 +131,8 @@ class Relay:
     # -- main entry ------------------------------------------------------
     def handle(self, data, addr):
         now = self.clock()
+        if len(data) >= QUERY_SIZE and data[:4] == QUERY:
+            return [(ANSWER + struct.pack("<iBB", VERSION, len(self.players), MAX_PLAYERS) + short_string(self.name.encode()), addr)]
         if len(data) < 7 or len(data) > MAX_PACKET or data[:4] != MAGIC:
             return []
         ptype, to = data[4], data[6]
@@ -206,8 +223,20 @@ class Relay:
         return out
 
 
-def serve(port, password, bind="0.0.0.0"):
-    relay = Relay(password, log=lambda m: print(time.strftime("%H:%M:%S"), m, flush=True))
+def serve(port, password, bind="0.0.0.0", name="RDR2 Co-op server", list_server=None):
+    relay = Relay(password, log=lambda m: print(time.strftime("%H:%M:%S"), m, flush=True), name=name)
+    stop = threading.Event()
+    if list_server:   # player counts are read without a lock: a stale count for a minute is fine
+        threading.Thread(target=keep_listed, args=(list_server, name, port, relay, stop), daemon=True).start()
+    try:
+        run(relay, port, bind)
+    finally:
+        stop.set()
+        if list_server:
+            announce(list_server, "/v1/remove", {"port": port})
+
+
+def run(relay, port, bind):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((bind, port))
     sock.settimeout(1.0)
@@ -227,10 +256,38 @@ def serve(port, password, bind="0.0.0.0"):
                 pass
 
 
+def announce(list_server, path, body):
+    """POST to the online room list; None when done, else why not."""
+    req = urllib.request.Request(list_server.rstrip("/") + path, data=json.dumps(body).encode(),
+                                 headers={"Content-Type": "application/json"}, method="POST")
+    try:
+        with urllib.request.urlopen(req, timeout=10):
+            return None
+    except urllib.error.HTTPError as e:
+        return e.read().decode(errors="replace")[:200]
+    except OSError as e:
+        return str(e)
+
+
+def keep_listed(list_server, name, port, relay, stop):
+    last = ""
+    while True:
+        err = announce(list_server, "/v1/announce", {"name": name, "port": port, "players": len(relay.players),
+                                                      "max": MAX_PLAYERS, "version": VERSION})
+        if err != last:
+            print(time.strftime("%H:%M:%S"), f"listed online as '{name}'" if err is None else f"couldn't list online: {err}", flush=True)
+            last = err
+        if stop.wait(60):
+            return
+
+
 def main():
     ap = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     ap.add_argument("--port", type=int, default=27460, help="UDP port (default 27460)")
     ap.add_argument("--bind", default="0.0.0.0", help="address to listen on (default: all)")
+    ap.add_argument("--name", default="RDR2 Co-op server", help="room name in the server browser")
+    ap.add_argument("--public", action="store_true", help="list the room in the online server browser")
+    ap.add_argument("--list-server", default=DEFAULT_LIST_SERVER, help="online room list URL")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--password")
     g.add_argument("--password-file")
@@ -238,7 +295,10 @@ def main():
     password = a.password if a.password is not None else open(a.password_file).read().strip()
     if not password:
         sys.exit("empty password")
-    serve(a.port, password, a.bind)
+    if a.public and not a.list_server:
+        sys.exit("--public needs --list-server URL (the online room list)")
+    signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))   # service stop: still leave the online list
+    serve(a.port, password, a.bind, a.name, a.list_server if a.public else None)
 
 
 if __name__ == "__main__":

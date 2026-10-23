@@ -1,7 +1,8 @@
 // RunServer=Yes: this game runs the co-op server (Net/Relay.cs) and, with
 // UPnP=Yes, asks the router to open its port so friends can join over the
-// internet. Router talk happens on a background thread; the game picks up
-// what to tell the player with TakeNote() from its tick.
+// internet; with Public=Yes it also lists the room in the online server
+// browser. Router and list talk happen on a background thread; the game picks
+// up what to tell the player with TakeNote() from its tick.
 using System;
 using System.Net;
 using System.Net.Sockets;
@@ -12,31 +13,35 @@ namespace RDR2Coop.Mod
 {
     sealed class BuiltInServer : IDisposable
     {
-        const int RenewMs = 30 * 60 * 1000;
+        const int RenewMs = 30 * 60 * 1000, AnnounceMs = 60 * 1000;
 
         readonly RelayHost _host;
         readonly int _port;
+        readonly string _roomName, _listServer;   // _listServer null: not listed online
         readonly ManualResetEvent _stop = new ManualResetEvent(false);
         volatile Upnp _upnp;
         volatile string _note;
 
         public string Status { get; private set; }
+        public int Port => _port;
 
-        BuiltInServer(RelayHost host, int port, bool upnp)
+        BuiltInServer(RelayHost host, int port, bool upnp, string roomName, string listServer)
         {
             _host = host;
             _port = port;
-            Status = $"server on UDP {port}";
-            if (upnp) new Thread(OpenPort) { IsBackground = true, Name = "RDR2Coop.UPnP" }.Start();
-            else Note($"Co-op server running (UDP {port}). UPnP is off: forward UDP {port} to this PC for friends over the internet.");
+            _roomName = roomName;
+            _listServer = listServer;
+            Status = $"server '{roomName}' on UDP {port}";
+            if (!upnp) Note($"Co-op server running (UDP {port}). UPnP is off: forward UDP {port} to this PC for friends over the internet.");
+            if (upnp || listServer != null) new Thread(() => Background(upnp)) { IsBackground = true, Name = "RDR2Coop.ServerNet" }.Start();
         }
 
         // null (and a note saying why) when it can't run.
-        public static BuiltInServer Start(int port, string password, bool upnp, out string why)
+        public static BuiltInServer Start(int port, string password, bool upnp, string roomName, string listServer, out string why)
         {
             why = null;
             if (string.IsNullOrEmpty(password)) { why = "Co-op: set a Password in RDR2Coop.ini to run the server"; return null; }
-            try { return new BuiltInServer(new RelayHost(port, password, l => CoopScript.Log("server: " + l)), port, upnp); }
+            try { return new BuiltInServer(new RelayHost(port, password, l => CoopScript.Log("server: " + l), roomName), port, upnp, roomName, listServer); }
             catch (SocketException e)
             {
                 why = $"Co-op: can't run the server, UDP {port} is in use ({e.SocketErrorCode}); joining whatever runs there";
@@ -52,38 +57,56 @@ namespace RDR2Coop.Mod
             _note = text;
         }
 
-        void OpenPort()
+        void Background(bool upnp)
         {
             try
             {
-                var u = Upnp.Find();
-                if (u == null)
+                if (upnp) OpenPort();
+                long nextRenew = Environment.TickCount + RenewMs;
+                string lastError = "";
+                do
                 {
-                    Status += ", no UPnP router";
-                    Note($"Co-op server running. No UPnP router answered: forward UDP {_port} to this PC for friends over the internet (same network: they use this PC's address).");
-                    return;
+                    if (_listServer != null)
+                    {
+                        string err = RoomList.Announce(_listServer, _roomName, _port, _host.PlayerCount, 4, _upnp?.PublicIp);
+                        if (err != null && err != lastError) Note("Co-op: your room couldn't be listed online: " + err);
+                        else if (err == null && lastError != null) CoopScript.Log("listed online as '" + _roomName + "'");
+                        lastError = err;
+                    }
+                    if (_upnp != null && Environment.TickCount - nextRenew >= 0) { _upnp.Open(_port); nextRenew = Environment.TickCount + RenewMs; }   // keep the lease alive
                 }
-                string err = u.Open(_port);
-                if (err != null)
-                {
-                    Status += ", UPnP refused";
-                    Note($"Co-op server running. The router refused to open UDP {_port} ({err}): forward it to {u.LocalIp} by hand.");
-                    return;
-                }
-                _upnp = u;
-                if (Shared(u.PublicIp))
-                {
-                    Status += $", port open but {u.PublicIp} is shared";
-                    Note($"Co-op server running, but your internet address ({u.PublicIp}) is shared by your provider (CGNAT), so friends can't reach it. Use Tailscale or ZeroTier, or a server elsewhere.");
-                }
-                else
-                {
-                    Status += $", friends join {u.PublicIp}:{_port}";
-                    Note($"Co-op server open to the internet: friends join {u.PublicIp} port {_port}");
-                }
-                while (!_stop.WaitOne(RenewMs)) u.Open(_port);   // keep the lease alive while we play
+                while (!_stop.WaitOne(_listServer != null ? AnnounceMs : RenewMs));
             }
-            catch (Exception e) { CoopScript.Log("UPnP: " + e.Message); }
+            catch (Exception e) { CoopScript.Log("server network: " + e.Message); }
+        }
+
+        void OpenPort()
+        {
+            var u = Upnp.Find();
+            if (u == null)
+            {
+                Status += ", no UPnP router";
+                Note($"Co-op server running. No UPnP router answered: forward UDP {_port} to this PC for friends over the internet (same network: they use this PC's address).");
+                return;
+            }
+            string err = u.Open(_port);
+            if (err != null)
+            {
+                Status += ", UPnP refused";
+                Note($"Co-op server running. The router refused to open UDP {_port} ({err}): forward it to {u.LocalIp} by hand.");
+                return;
+            }
+            _upnp = u;
+            if (Shared(u.PublicIp))
+            {
+                Status += $", port open but {u.PublicIp} is shared";
+                Note($"Co-op server running, but your internet address ({u.PublicIp}) is shared by your provider (CGNAT), so friends can't reach it. Use Tailscale or ZeroTier, or a server elsewhere.");
+            }
+            else
+            {
+                Status += $", friends join {u.PublicIp}:{_port}";
+                Note($"Co-op server open to the internet: friends join {u.PublicIp} port {_port}");
+            }
         }
 
         static bool Shared(string ip)
@@ -98,6 +121,7 @@ namespace RDR2Coop.Mod
             _stop.Set();
             _host.Dispose();
             try { _upnp?.Close(_port); } catch (Exception) { }
+            if (_listServer != null) RoomList.Remove(_listServer, _port);
         }
     }
 }

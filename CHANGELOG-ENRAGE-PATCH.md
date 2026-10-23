@@ -2,6 +2,13 @@
 
 For enRage 0.9.5.1 (Nexus mod 10967). Needs RDR2 Co-op; host only.
 
+## 0.4.1 (23 Oct 2026) - needs RDR2 Co-op 0.4.0 or newer (tested with 0.6.0)
+- No change to the patch itself (the patched enRage is byte-identical to 0.4.0).
+- Tested with RDR2 Co-op 0.6.0 (server built into the host's game, server browser).
+- The readme covers both installers: the Windows RDR2CoopSetup.exe and the Linux
+  setup.py (both in the GitHub downloads), since the patch has to be applied to
+  your own enRage file.
+
 ## 0.4.0 (23 Oct 2026) - needs RDR2 Co-op 0.4.0
 - A partner's non-fatal hits (shots, punches, knives) start grudges like
   yours: the co-op mod now says which weapon each relayed hit came from.
