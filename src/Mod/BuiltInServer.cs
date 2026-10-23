@@ -23,6 +23,7 @@ namespace RDR2Coop.Mod
         volatile string _note;
 
         public string Status { get; private set; }
+        public string ListedAs { get; private set; }   // our address in the online list, once listed
         public int Port => _port;
 
         BuiltInServer(RelayHost host, int port, bool upnp, string roomName, string listServer)
@@ -68,7 +69,8 @@ namespace RDR2Coop.Mod
                 {
                     if (_listServer != null)
                     {
-                        string err = RoomList.Announce(_listServer, _roomName, _port, _host.PlayerCount, 4, _upnp?.PublicIp);
+                        string err = RoomList.Announce(_listServer, _roomName, _port, _host.PlayerCount, 4, _upnp?.PublicIp, out string listedAs);
+                        if (listedAs != null) ListedAs = listedAs;
                         if (err != null && err != lastError) Note("Co-op: your room couldn't be listed online: " + err);
                         else if (err == null && lastError != null) CoopScript.Log("listed online as '" + _roomName + "'");
                         lastError = err;

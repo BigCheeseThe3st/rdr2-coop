@@ -259,7 +259,9 @@ def run(relay, port, bind):
 def announce(list_server, path, body):
     """POST to the online room list; None when done, else why not."""
     req = urllib.request.Request(list_server.rstrip("/") + path, data=json.dumps(body).encode(),
-                                 headers={"Content-Type": "application/json"}, method="POST")
+                                 headers={"Content-Type": "application/json",
+                                          # Cloudflare refuses Python's default user agent (error 1010)
+                                          "User-Agent": f"rdr2coop-relay/{VERSION}"}, method="POST")
     try:
         with urllib.request.urlopen(req, timeout=10):
             return None

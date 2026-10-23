@@ -24,11 +24,14 @@ namespace RDR2Coop.Net
         [DataMember(Name = "max")] public int Max;
         [DataMember(Name = "version")] public int Version;
         public bool Lan;
+        public bool HostHere;   // the browser's "host your own game" row, not a server
+        public bool Party;      // the browser's mission party row (host only)
     }
 
     public static class RoomList
     {
         [DataContract] sealed class Rooms { [DataMember(Name = "rooms")] public List<Room> List = new List<Room>(); }
+        [DataContract] sealed class Listed { [DataMember(Name = "address")] public string Address = null; }
 
         [DataContract]
         sealed class Announcement
@@ -87,17 +90,24 @@ namespace RDR2Coop.Net
                 return ((Rooms)new DataContractJsonSerializer(typeof(Rooms)).ReadObject(s))?.List ?? new List<Room>();
         }
 
-        // List (or refresh) a room; null when done, else why not.
-        public static string Announce(string listServer, string name, int port, int players, int max, string ipv4)
+        // List (or refresh) a room; null when done (listedAs: the address the
+        // list shows it under), else why not.
+        public static string Announce(string listServer, string name, int port, int players, int max, string ipv4, out string listedAs)
         {
+            listedAs = null;
             var body = new Announcement { Name = name, Port = port, Players = players, Max = max, Version = Protocol.Version, Ipv4 = ipv4 };
-            return Post(listServer, "/v1/announce", body);
+            string err = Post(listServer, "/v1/announce", body, out string reply);
+            if (err == null)
+                try { listedAs = ((Listed)new DataContractJsonSerializer(typeof(Listed)).ReadObject(new MemoryStream(Encoding.UTF8.GetBytes(reply ?? "{}")))).Address; }
+                catch (SerializationException) { }
+            return err;
         }
 
-        public static void Remove(string listServer, int port) => Post(listServer, "/v1/remove", new Announcement { Port = port, Name = "" }, 1500);
+        public static void Remove(string listServer, int port) => Post(listServer, "/v1/remove", new Announcement { Port = port, Name = "" }, out _, 1500);
 
-        static string Post(string listServer, string path, Announcement body, int timeoutMs = 5000)
+        static string Post(string listServer, string path, Announcement body, out string reply, int timeoutMs = 5000)
         {
+            reply = null;
             var req = (HttpWebRequest)WebRequest.Create(listServer.TrimEnd('/') + path);
             req.Method = "POST";
             req.ContentType = "application/json";
@@ -105,7 +115,8 @@ namespace RDR2Coop.Net
             try
             {
                 using (var s = req.GetRequestStream()) new DataContractJsonSerializer(typeof(Announcement)).WriteObject(s, body);
-                using (req.GetResponse()) { }
+                using (var resp = req.GetResponse())
+                using (var r = new StreamReader(resp.GetResponseStream())) reply = r.ReadToEnd();
                 return null;
             }
             catch (WebException e) when (e.Response != null)

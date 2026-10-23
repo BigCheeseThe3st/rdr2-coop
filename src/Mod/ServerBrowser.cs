@@ -20,9 +20,12 @@ namespace RDR2Coop.Mod
         const int Rows = 12;
         const int KeyboardPassword = 2;   // KTEXTTYPE_PASSWORD
 
-        readonly int _port;
         readonly string _listServer;          // empty: online list off
         readonly Func<Room, bool> _isOwn;     // our own built-in server, left out
+        readonly Func<bool> _canHost;         // not running our own server: offer to
+        readonly Func<string> _hostPassword;  // our own room's password, offered again
+        readonly Func<string> _partyLabel;    // the mission party row's text, null when we don't host
+        readonly Action _toggleParty;
         readonly Keys _closeKey;
         Mode _mode;
         volatile List<Room> _rooms;
@@ -31,12 +34,16 @@ namespace RDR2Coop.Mod
         Room _picked;
         long _keyboardSince;
 
-        public ServerBrowser(int port, string listServer, Func<Room, bool> isOwn, Keys closeKey)
+        public ServerBrowser(string listServer, Func<Room, bool> isOwn, Func<bool> canHost, Func<string> hostPassword,
+                             Func<string> partyLabel, Action toggleParty, Keys closeKey)
         {
+            _partyLabel = partyLabel;
+            _toggleParty = toggleParty;
             _closeKey = closeKey;
-            _port = port;
             _listServer = listServer ?? "";
             _isOwn = isOwn;
+            _canHost = canHost;
+            _hostPassword = hostPassword;
         }
 
         public bool IsOpen => _mode != Mode.Closed;
@@ -56,14 +63,18 @@ namespace RDR2Coop.Mod
 
         void Refresh()
         {
-            _rooms = null;
-            _message = "Searching...";
+            // The menu rows (decided here, on the game's thread) show at once; servers once found.
+            var actions = new List<Room>();
+            if (_partyLabel() != null) actions.Add(new Room { Name = "Mission party", Version = Protocol.Version, Max = 4, Party = true });
+            if (_canHost()) actions.Add(new Room { Name = "Host your own game here", Version = Protocol.Version, Max = 4, HostHere = true });
+            _rooms = actions;
+            _message = "Searching for games...";
             _selected = 0;
             new Thread(() =>
             {
                 var rooms = new List<Room>();
                 string note = null;
-                try { rooms.AddRange(RoomList.QueryLan(_port)); } catch (Exception e) { CoopScript.Log("browser LAN: " + e.Message); }
+                try { rooms.AddRange(RoomList.QueryLan(ServerLink.DefaultPort)); } catch (Exception e) { CoopScript.Log("browser LAN: " + e.Message); }
                 if (_listServer.Length > 0)
                 {
                     try { rooms.AddRange(RoomList.FetchOnline(_listServer).Where(r => r != null)); }
@@ -72,7 +83,7 @@ namespace RDR2Coop.Mod
                 else note = "Online list is off (ListServer= in RDR2Coop.ini).";
                 rooms = rooms.Where(r => !_isOwn(r)).ToList();
                 _message = note ?? (rooms.Count == 0 ? "No games found. R searches again." : null);
-                _rooms = rooms;
+                _rooms = actions.Concat(rooms).ToList();
             }) { IsBackground = true, Name = "RDR2Coop.Browser" }.Start();
         }
 
@@ -90,11 +101,13 @@ namespace RDR2Coop.Mod
                 case Keys.Enter:
                     if (rooms == null || _selected >= rooms.Count) return true;
                     var room = rooms[_selected];
-                    if (room.Version != Protocol.Version) { _message = $"'{room.Name}' runs another co-op version (protocol {room.Version}, yours {Protocol.Version})."; return true; }
-                    if (room.Players >= room.Max) { _message = $"'{room.Name}' is full."; return true; }
+                    if (room.Party) { Close(); _toggleParty(); return true; }
+                    if (!room.HostHere && room.Version != Protocol.Version) { _message = $"'{room.Name}' runs another co-op version (protocol {room.Version}, yours {Protocol.Version})."; return true; }
+                    if (!room.HostHere && room.Players >= room.Max) { _message = $"'{room.Name}' is full."; return true; }
                     _picked = room;
                     _mode = Mode.Password;
                     _keyboardSince = Environment.TickCount;
+                    // Empty, never prefilled: a hidden prefilled password got typed in a second time.
                     MISC.DISPLAY_ONSCREEN_KEYBOARD(KeyboardPassword, "", "", "", "", "", "", 64);
                     return true;
             }
@@ -115,8 +128,11 @@ namespace RDR2Coop.Mod
             // The game's keyboard only shows built-in text as its title: ours goes above it.
             DrawLines(new List<(string, Color)>
             {
-                ($"Room password for '{_picked.Name}'", Color.FromArgb(255, 200, 40, 40)),
-                ("Type it, then Enter to join (Esc goes back to the list)", Color.White),
+                _picked.HostHere ? ("Password for your game", Color.FromArgb(255, 200, 40, 40))
+                                 : ($"Room password for '{_picked.Name}'", Color.FromArgb(255, 200, 40, 40)),
+                (_picked.HostHere ? (string.IsNullOrEmpty(_hostPassword()) ? "Type one (tell your friends), then Enter (Esc goes back)"
+                                                                           : "Enter keeps your saved one, or type a new one (Esc goes back)")
+                                  : "Type it, then Enter to join (Esc goes back to the list)", Color.White),
             });
             int status = MISC.UPDATE_ONSCREEN_KEYBOARD();
             if (status == 1)
@@ -143,13 +159,15 @@ namespace RDR2Coop.Mod
             int first = Math.Max(0, Math.Min(_selected - Rows / 2, rooms.Count - Rows));
             var lines = new List<(string text, Color color)>
             {
-                ($"Co-op games   (Up/Down pick, Enter join, R search again, {_closeKey} close)", Color.FromArgb(255, 200, 40, 40))
+                ($"Co-op   (Up/Down pick, Enter choose, R search again, {_closeKey} close)", Color.FromArgb(255, 200, 40, 40))
             };
             for (int i = first; i < Math.Min(rooms.Count, first + Rows); i++)
             {
                 var r = rooms[i];
                 string where = r.Lan ? "home network" : "online";
-                string text = $"{(i == _selected ? "> " : "   ")}{r.Name}   {r.Players}/{r.Max}   {where}" +
+                string text = r.Party ? $"{(i == _selected ? "> " : "   ")}{_partyLabel() ?? "Mission party (host only)"}"
+                            : r.HostHere ? $"{(i == _selected ? "> " : "   ")}Host your own game here (your server, your story world)"
+                            : $"{(i == _selected ? "> " : "   ")}{r.Name}   {r.Players}/{r.Max}   {where}" +
                               (r.Version != Protocol.Version ? "   (other version)" : "");
                 lines.Add((text, r.Version != Protocol.Version || r.Players >= r.Max ? Color.Gray : i == _selected ? Color.Gold : Color.White));
             }
@@ -157,12 +175,6 @@ namespace RDR2Coop.Mod
             DrawLines(lines);
         }
 
-        static void DrawLines(List<(string text, Color color)> lines)
-        {
-            const float x = 40f, y = 60f, line = 22f;
-            new ContainerElement(new PointF(x - 12f, y - 10f), new SizeF(640f, line * lines.Count + 20f), Color.FromArgb(190, 0, 0, 0)).ScaledDraw();
-            for (int i = 0; i < lines.Count; i++)
-                new TextElement(lines[i].text, new PointF(x, y + i * line), i == 0 ? 0.40f : 0.36f, lines[i].color).ScaledDraw();
-        }
+        static void DrawLines(List<(string text, Color color)> lines) => Ui.Panel(lines);
     }
 }

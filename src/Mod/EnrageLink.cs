@@ -52,7 +52,7 @@ namespace RDR2Coop.Mod
         {
             float x = 0f, y = 0f;
             if (!RDR2.Native.GRAPHICS.GET_SCREEN_COORD_FROM_WORLD_COORD(at, &x, &y)) return;
-            new TextElement(text, new PointF(x * 1280f, y * 720f), 0.32f, Color.FromArgb(235, 240, 225, 200), Alignment.Center, true, true).Draw();
+            Ui.Text(text, x - text.Length * 0.0028f, y, 0.32f, Color.FromArgb(235, 240, 225, 200));   // roughly centred over them
         }
 
         public void Tick(ServerLink link, bool downed, long now)
@@ -113,13 +113,7 @@ namespace RDR2Coop.Mod
             return true;
         }
 
-        static void Draw(string[] lines)
-        {
-            const float x = 40f, y = 60f, line = 22f;
-            new ContainerElement(new PointF(x - 12f, y - 10f), new SizeF(560f, line * lines.Length + 20f), Color.FromArgb(170, 0, 0, 0)).ScaledDraw();
-            for (int i = 0; i < lines.Length; i++)
-                new TextElement(lines[i], new PointF(x, y + i * line), i == 0 ? 0.42f : 0.36f,
-                                i == 0 ? Color.FromArgb(255, 200, 40, 40) : Color.White).ScaledDraw();
-        }
+        static void Draw(string[] lines) =>
+            Ui.Panel(lines.Select((l, i) => (l, i == 0 ? Color.FromArgb(255, 200, 40, 40) : Color.White)).ToList(), 560f);
     }
 }

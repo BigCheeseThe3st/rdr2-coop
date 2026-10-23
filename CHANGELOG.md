@@ -3,6 +3,21 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.3 (23 Oct 2026) - protocol 13
+- F10 twice is now the co-op menu: start or end a mission party (host), "Host
+  your own game here" after joining someone else's room, and the server
+  browser. The mission party is no longer on F8, which is ScriptHookRDR2DotNet's
+  console key (MissionParty= in the ini sets a shortcut if you want one).
+- Your own game no longer shows in your online list (joining it switched your
+  own server off).
+- Joining someone else's room keeps your own room's password (HostPassword=):
+  "Host your own game here" then only needs Enter (or type a new password).
+- The co-op menu, the enRage nemesis panel and name tags no longer flicker
+  (the text is kept in memory until the game has drawn it).
+- Game names from the online list can't use the game's text formatting codes.
+- The browser always searches your network on the standard port (27460).
+- relay.py --public works (Cloudflare refused Python's default user agent).
+
 ## 0.6.2 (23 Oct 2026) - protocol 13
 - The server browser's password box says what it's for: "Room password for
   '<game>'", with Enter to join and Esc to go back (the game's keyboard can't

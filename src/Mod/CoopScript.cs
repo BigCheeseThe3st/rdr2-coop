@@ -48,6 +48,10 @@ namespace RDR2Coop.Mod
         int _lastStatusKey;
         string _iniPath, _name = "", _password = "";
         bool _preferHost;
+        // Our own server's settings, kept for "Host your own game here" after joining someone else's.
+        int _hostPort;
+        string _hostPassword = "", _roomName = "", _listServer = "";
+        bool _upnpOn, _public;
         OwnedWorld _owned;
         MirrorWorld _mirror;
         byte _owner;                 // whose game runs our area (our own id when ours)
@@ -97,13 +101,16 @@ namespace RDR2Coop.Mod
             string appearAs = ini.Get("Coop", "AppearAs", "");
             string listServer = ini.Get("Coop", "ListServer", DefaultListServer).Trim();
             if (listServer.Equals("off", StringComparison.OrdinalIgnoreCase)) listServer = "";
-            if (ini.Get("Coop", "RunServer", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase))
+            _listServer = listServer;
+            _public = ini.Get("Coop", "Public", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
+            _upnpOn = !ini.Get("Coop", "UPnP", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase);
+            _roomName = ini.Get("Coop", "RoomName", name + "'s game");
+            bool runServer = ini.Get("Coop", "RunServer", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);
+            _hostPort = runServer ? port : ini.Get("Coop", "HostPort", ServerLink.DefaultPort);
+            _hostPassword = runServer ? password : ini.Get("Coop", "HostPassword", "");
+            if (runServer)
             {
-                bool listed = ini.Get("Coop", "Public", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase) && listServer.Length > 0;
-                string roomName = ini.Get("Coop", "RoomName", name + "'s game");
-                _builtIn = BuiltInServer.Start(port, password, !ini.Get("Coop", "UPnP", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase),
-                                               roomName, listed ? listServer : null, out string why);
-                if (why != null) { Log(why); Say(why); }
+                _builtIn = StartOwnServer(password);
                 server = "127.0.0.1";   // our own server (or whatever already runs on that port here)
             }
             _appearAs = string.IsNullOrWhiteSpace(appearAs) ? 0 : MISC.GET_HASH_KEY(appearAs.Trim());
@@ -111,12 +118,14 @@ namespace RDR2Coop.Mod
             _statusKey = ParseKey(ini.Get("Keys", "ShowStatus", "F10"), Keys.F10);
             _spawnWagonKey = ParseKey(ini.Get("Keys", "SpawnWagon", ""), Keys.None);   // testing aids: off unless set in the ini
             _spawnTrainKey = ParseKey(ini.Get("Keys", "SpawnTrain", ""), Keys.None);
-            _partyKey = ParseKey(ini.Get("Keys", "MissionParty", "F8"), Keys.F8);
+            _partyKey = ParseKey(ini.Get("Keys", "MissionParty", ""), Keys.None);   // F8 is ScriptHookRDR2DotNet's console: the co-op menu has it
             _reviveKey = ParseKey(ini.Get("Keys", "Revive", "F7"), Keys.F7);
             _travelKey = ParseKey(ini.Get("Keys", "TravelTo", ""), Keys.None);
             _nemesisKey = ParseKey(ini.Get("Keys", "Nemeses", "F11"), Keys.F11);
             _browserKey = ParseKey(ini.Get("Keys", "ServerBrowser", ""), Keys.None);   // Home, F6...: taken by the game
-            _browser = new ServerBrowser(port, listServer, IsOwnServer, _browserKey != Keys.None ? _browserKey : _statusKey);
+            _browser = new ServerBrowser(listServer, IsOwnServer, () => _builtIn == null, () => _hostPassword,
+                                         () => _link != null && _link.IAmHost ? (_party.IsHosting ? "End the mission party" : "Start a mission party (invites everyone)") : null,
+                                         () => _party.Toggle(_link), _browserKey != Keys.None ? _browserKey : _statusKey);
             var to = ini.Get("Testing", "TravelTo", "-283,790,118").Split(',');
             _travelTo = to.Length == 3 && float.TryParse(to[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)
                 && float.TryParse(to[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ty)
@@ -228,8 +237,37 @@ namespace RDR2Coop.Mod
         // From the server browser: leave this session (and stop our own server,
         // since we're joining someone else's) and join the picked room. The
         // choice is saved, so the next start goes straight back there.
+        BuiltInServer StartOwnServer(string password)
+        {
+            var b = BuiltInServer.Start(_hostPort, password, _upnpOn, _roomName, _public && _listServer.Length > 0 ? _listServer : null, out string why);
+            if (why != null) { Log(why); Say(why); }
+            return b;
+        }
+
+        // From the server browser: leave the room we're in and host our own
+        // game again (our server, our story world).
+        void HostOwn(string password)
+        {
+            if (string.IsNullOrEmpty(password)) password = _hostPassword;   // Enter on an empty box keeps the saved one
+            if (string.IsNullOrEmpty(password)) { Say("Co-op: your game needs a room password to host"); return; }
+            Log("browser: hosting our own game again");
+            _link?.Dispose();
+            ClearSession();
+            _builtIn?.Dispose();
+            _hostPassword = _password = password;
+            _builtIn = StartOwnServer(password);
+            try
+            {
+                Ini.SetCoop(_iniPath, new Dictionary<string, string> { { "RunServer", "Yes" }, { "Server", "127.0.0.1" }, { "Port", _hostPort.ToString() },
+                                                                       { "Password", password }, { "HostPassword", password }, { "HostPort", _hostPort.ToString() } });
+            }
+            catch (Exception e) { Log("couldn't save hosting to the settings file: " + e.Message); }
+            Connect("127.0.0.1", _hostPort, password);
+        }
+
         void SwitchTo(Room room, string password)
         {
+            if (room.HostHere) { HostOwn(password); return; }
             Log($"browser: joining '{room.Name}' at {room.Address}:{room.Port}");
             _link?.Dispose();
             ClearSession();
@@ -238,8 +276,10 @@ namespace RDR2Coop.Mod
             _password = password;
             try
             {
+                // Password is now the room's: our own room's stays in HostPassword for coming back.
                 Ini.SetCoop(_iniPath, new Dictionary<string, string> { { "Server", room.Address }, { "Port", room.Port.ToString() },
-                                                                       { "Password", password }, { "RunServer", "No" } });
+                                                                       { "Password", password }, { "RunServer", "No" },
+                                                                       { "HostPassword", _hostPassword }, { "HostPort", _hostPort.ToString() } });
             }
             catch (Exception e) { Log("couldn't save the room to the settings file: " + e.Message); }
             Connect(room.Address, room.Port, password);
@@ -248,7 +288,8 @@ namespace RDR2Coop.Mod
         bool IsOwnServer(Room r)
         {
             var b = _builtIn;
-            if (b == null || !r.Lan || r.Port != b.Port) return false;
+            if (b == null || r.Port != b.Port) return false;
+            if (!r.Lan) return r.Address == b.ListedAs;   // our own listing in the online list
             if (!System.Net.IPAddress.TryParse(r.Address, out var a)) return false;
             return System.Net.IPAddress.IsLoopback(a) ||
                    System.Net.Dns.GetHostAddresses(System.Net.Dns.GetHostName()).Any(x => x.Equals(a));
@@ -547,7 +588,7 @@ namespace RDR2Coop.Mod
             if (_browser.IsOpen && (e.KeyCode == _browserKey || e.KeyCode == _statusKey)) { _browser.Toggle(); return; }
             if (_browserKey != Keys.None && e.KeyCode == _browserKey) { _browser.Toggle(); return; }
             if (_browser.OnKey(e.KeyCode)) return;
-            if (e.KeyCode == _partyKey) { _party.Toggle(_link); return; }
+            if (_partyKey != Keys.None && e.KeyCode == _partyKey) { _party.Toggle(_link); return; }
             if (e.KeyCode == _travelKey) { _travelPending = true; return; }
             if (e.KeyCode == _nemesisKey && _enrage.RequestList(_link)) { Say($"Co-op: asking {_link.NameOf(_link.HostId)}'s enRage about your nemeses"); return; }
             if (e.KeyCode == _reviveKey)

@@ -1,4 +1,4 @@
-// Mission party: the host invites everyone (F8, or automatically when a
+// Mission party: the host invites everyone (co-op menu, F10 twice, or automatically when a
 // cutscene starts with no party), each player answers Y or N, and members are
 // then kept with the host: their screen fades out while the host is in a
 // cutscene or a faded transition, and they are put next to the host when it
@@ -34,11 +34,12 @@ namespace RDR2Coop.Mod
         readonly Random _rng = new Random();
 
         public bool IsMember => _mode == Mode.Member;
+        public bool IsHosting => _mode == Mode.Hosting;
         public string Status => _mode == Mode.Hosting ? $"hosting a mission party ({_members.Count} joined)"
                               : _mode == Mode.Member ? "in the host's mission party"
                               : _mode == Mode.Invited ? "invited to a mission (Y/N)" : "no mission party";
 
-        // Host: F8 starts a party, or ends the one running.
+        // Host (co-op menu, F10 twice): starts a party, or ends the one running.
         public void Toggle(ServerLink link)
         {
             if (!link.IAmHost) { Say("Co-op: only the host starts missions"); return; }
@@ -53,8 +54,8 @@ namespace RDR2Coop.Mod
             _partyId = (uint)_rng.Next(1, int.MaxValue);
             _members.Clear();
             link.SendParty(new PartyMsg { Kind = PartyKind.Invite, PartyId = _partyId });
-            Say(auto ? "Co-op: cutscene started - everyone was invited to join this mission (F8 ends the party)"
-                     : "Co-op: mission party started - everyone was invited (F8 ends it)");
+            Say(auto ? "Co-op: cutscene started - everyone was invited to join this mission (end it from the co-op menu, F10 twice)"
+                     : "Co-op: mission party started - everyone was invited (end it from the co-op menu, F10 twice)");
             CoopScript.Log($"party {_partyId}: invited everyone{(auto ? " (cutscene started)" : "")}");
         }
 
