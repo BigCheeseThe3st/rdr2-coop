@@ -3,6 +3,13 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.4.1 (23 Oct 2026) - protocol 13
+- Downloads split: the main file is now just the mod (RDR2Coop.dll, settings,
+  readme). The Linux installer and the server kit are a separate optional
+  download, and ScriptHookRDR2DotNet is no longer bundled (get it from its
+  official release; the Linux installer still fetches it for you).
+- No changes to how the mod plays; 0.4.0 and 0.4.1 play together.
+
 ## 0.4.0 (23 Oct 2026) - protocol 13
 - NPCs and horses look exactly as in the area owner's game: full clothes,
   hats, faces, and a horse's saddle and tack (sent once per NPC, again only

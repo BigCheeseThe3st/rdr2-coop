@@ -5,14 +5,13 @@ Everything compiled in the download comes from this repository:
 | File in the download | Source | Built by |
 |---|---|---|
 | `scripts/RDR2Coop.dll` (the mod) | `src/Net`, `src/Mod` | `src/RDR2Coop.csproj` |
-| `setup.py`, `server/relay.py`, `server/setup-server.sh` | as is (Python / shell, not compiled) | - |
+| `setup.py`, `server/relay.py`, `server/setup-server.sh` (installer download) | as is (Python / shell, not compiled) | - |
 
-Not built here (third-party, unmodified):
-- `scripthookdotnet/*`: ScriptHookRDR2DotNet V2 2.2.0 by crosire and Halen84
-  (zlib licence), from https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases/tag/2.2.0
-  (the files inside `ScriptHookRDR2DotNet-V2.rar`).
-- ScriptHookRDR2 by Alexander Blade is not in the download; the Linux installer fetches it from
-  https://www.dev-c.com/rdr2/scripthookrdr2/ and check its SHA-256.
+Not in the download (third-party, players get them from their authors):
+- ScriptHookRDR2DotNet V2 2.2.0 by crosire and Halen84 (zlib licence),
+  https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases/tag/2.2.0
+- ScriptHookRDR2 by Alexander Blade, https://www.dev-c.com/rdr2/scripthookrdr2/
+The Linux installer fetches both if missing and checks their SHA-256.
 
 ## With the .NET SDK (Windows or Linux)
 

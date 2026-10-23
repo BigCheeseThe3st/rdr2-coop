@@ -32,6 +32,8 @@ SHR_PAGE = "https://www.dev-c.com/rdr2/scripthookrdr2/"
 # Runs inside the game, so only the exact file we tested is installed
 # (same checksum from two separate downloads, 21 and 23 Oct 2026).
 SHR_SHA256 = "a3be69dcd33e6cffe316d7c17ee5c4f7fcedf0c7b7fa8cf68177398e6594c39f"
+SHDN_URL = "https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases/download/2.2.0/ScriptHookRDR2DotNet-V2.rar"
+SHDN_SHA256 = "61682e6236618849fa96a5f4a305681c838120158857db57d72da5311f7e97f8"
 
 
 PATCH_DIR = HERE / "enrage-coop-patch"
@@ -191,15 +193,22 @@ def install_scripthook(game):
                 (game / Path(name).name).write_bytes(zf.read(name))
         say("  ScriptHookRDR2 1.0.1491.17 installed")
     if not (game / "ScriptHookRDRDotNet.asi").is_file():
-        # Bundled (zlib licence, see scripthookdotnet/LICENSE.txt).
-        for name in ("ScriptHookRDRDotNet.asi", "ScriptHookRDRDotNet.ini", "ScriptHookRDRNetAPI.dll"):
-            shutil.copy2(HERE / "scripthookdotnet" / name, game / name)
+        # From its official GitHub release (zlib licence); the release is a .rar.
+        if not shutil.which("bsdtar"):
+            fail("bsdtar is needed to unpack ScriptHookRDR2DotNet: sudo pacman -S libarchive (or your distro's package)")
+        rar = download(SHDN_URL, CACHE / "ScriptHookRDR2DotNet-V2-2.2.0.rar", SHDN_SHA256)
+        with tempfile.TemporaryDirectory() as t:
+            subprocess.run(["bsdtar", "-xf", str(rar), "-C", t], check=True)
+            for name in ("ScriptHookRDRDotNet.asi", "ScriptHookRDRDotNet.ini", "ScriptHookRDRNetAPI.dll"):
+                shutil.copy2(Path(t) / name, game / name)
         say("  ScriptHookRDR2DotNet V2 2.2.0 installed")
 
 
 def install_coop(game, name, server, port, password, host):
     scripts = game / "scripts"
     scripts.mkdir(exist_ok=True)
+    if not (HERE / "scripts/RDR2Coop.dll").is_file():
+        fail("The mod itself isn't here: unpack the main RDR2 Co-op download into this same folder, then run this again.")
     shutil.copy2(HERE / "scripts/RDR2Coop.dll", scripts / "RDR2Coop.dll")
     ini = scripts / "RDR2Coop.ini"
     if not ini.exists() or "Server=" not in ini.read_text(errors="replace"):
