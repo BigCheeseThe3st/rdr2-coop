@@ -1,7 +1,8 @@
 #!/bin/sh
 # Builds the Nexus uploads in release/upload/:
 #   RDR2-Coop-<v>.zip                       main file: just the mod (DLL + settings + readme)
-#   RDR2-Coop-Installer-and-Server-<v>.zip  optional: Linux installer, prefix script, server kit
+#   RDR2-Coop-Server-<v>.zip                optional: the server (relay + guide + Linux service)
+#   RDR2-Coop-Linux-Installer-<v>.zip       optional: setup.py + prefix script
 #   RDR2-Coop-enRage-Patch-<pv>.zip         optional: the enRage co-op patch (binary patch)
 # All unpack into a folder called RDR2-Coop, so they land together. The main file
 # stays minimal (no scripts, no third-party binaries) so it doesn't wait on
@@ -34,11 +35,12 @@ fi
 N=RDR2-Coop                              # top folder in every zip
 MAIN=release/.stage/main/$N
 TOOLS=release/.stage/tools/$N
+SERVER=release/.stage/server/$N
 ADDON=release/.stage/addon/$N
 UPLOAD=release/upload
 
 ./build.sh
-rm -rf release/.stage "$UPLOAD" && mkdir -p "$MAIN/scripts" "$TOOLS/server" "$ADDON/enrage-coop-patch" "$UPLOAD"
+rm -rf release/.stage "$UPLOAD" && mkdir -p "$MAIN/scripts" "$TOOLS" "$SERVER/server" "$ADDON/enrage-coop-patch" "$UPLOAD"
 
 # Main file: only what goes in the game's scripts folder, and how.
 cp dist/scripts/RDR2Coop.dll RDR2Coop.ini "$MAIN/scripts/"
@@ -46,13 +48,16 @@ cp README-PLAYERS.txt "$MAIN/"
 cp CHANGELOG.md "$MAIN/CHANGELOG.txt"
 echo "$VERSION" > "$MAIN/VERSION.txt"
 
-# Installer and server (Linux installer; the server runs anywhere with Python).
+# Server (runs anywhere with Python 3, standard library only).
+cp server/relay.py server/setup-server.sh server/rdr2coop-relay.service server/README-SERVER.md "$SERVER/server/"
+chmod +x "$SERVER/server/setup-server.sh" "$SERVER/server/relay.py"
+
+# Linux installer.
 cp setup.py prepare-prefix.sh "$TOOLS/"
-cp server/relay.py server/setup-server.sh server/rdr2coop-relay.service server/README-SERVER.md "$TOOLS/server/"
-chmod +x "$TOOLS/setup.py" "$TOOLS/prepare-prefix.sh" "$TOOLS/server/setup-server.sh" "$TOOLS/server/relay.py"
+chmod +x "$TOOLS/setup.py" "$TOOLS/prepare-prefix.sh"
 cat > "$TOOLS/README-INSTALLER.txt" <<'EOF'
-RDR2 Co-op - installer and server (optional download)
-=====================================================
+RDR2 Co-op - Linux installer (optional download)
+================================================
 Unpack this in the same place as the main RDR2 Co-op download: it goes into
 the same RDR2-Coop folder.
 
@@ -63,7 +68,6 @@ the same RDR2-Coop folder.
                      a host who has that optional download too.
                      python3 setup.py --uninstall takes it out again.
   prepare-prefix.sh  Gives a fresh Proton prefix .NET 4.8 (setup.py offers it).
-  server/            Run your own co-op server: see server/README-SERVER.md.
 EOF
 
 # enRage patch: bsdiff's three blocks re-packed with raw deflate (RDCOPAT1),
@@ -107,7 +111,7 @@ Shares the host's enRage world (nemeses, grudges, ambushes) with the co-op
 party: your partners' kills, wounds and knockouts count as yours, and enRage
 never turns a co-op player into a nemesis.
 
-Needs: RDR2 Co-op (main download), its installer download, and enRage 0.9.5.1
+Needs: RDR2 Co-op (main download), its Linux installer download, and enRage 0.9.5.1
 from Nexus (mod 10967). Only the player who usually hosts needs it.
 
   1. Unpack this in the same place as the main and installer downloads: it
@@ -135,7 +139,8 @@ EOF
 rm -rf "$TOOLS/__pycache__"
 
 (cd release/.stage/main && zip -qr "../../upload/RDR2-Coop-$VERSION.zip" "$N")
-(cd release/.stage/tools && zip -qr "../../upload/RDR2-Coop-Installer-and-Server-$VERSION.zip" "$N")
+(cd release/.stage/server && zip -qr "../../upload/RDR2-Coop-Server-$VERSION.zip" "$N")
+(cd release/.stage/tools && zip -qr "../../upload/RDR2-Coop-Linux-Installer-$VERSION.zip" "$N")
 (cd release/.stage/addon && zip -qr "../../upload/RDR2-Coop-enRage-Patch-$PATCH_VERSION.zip" "$N")
 grep -qx "coop $VERSION" "$BUILT" || echo "coop $VERSION" >> "$BUILT"
 grep -qx "enrage-patch $PATCH_VERSION $PATCHED_SHA" "$BUILT" || echo "enrage-patch $PATCH_VERSION $PATCHED_SHA" >> "$BUILT"

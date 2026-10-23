@@ -9,12 +9,18 @@ one password.
 ## Quick start (any computer with Python 3.6+)
 
 ```
-echo 'pick-a-long-password' > password.txt
-python3 relay.py --password-file password.txt
+python3 relay.py --password pick-a-long-password      (Windows: py relay.py ...)
 ```
 
+Or keep the password in a file: `python3 relay.py --password-file password.txt`.
 It listens on UDP port 27460 (`--port` to change it). Leave the window open
 while you play. Works on Linux, Windows and macOS.
+
+**Windows:** install Python 3 from python.org (tick "Add python.exe to PATH"),
+open a Command Prompt in the server folder (type `cmd` in Explorer's address
+bar) and run `py relay.py --password pick-a-long-password`. The first time,
+Windows Firewall asks about Python: click Allow (tick Public too if friends
+join over the internet). Stop it with Ctrl+C or by closing the window.
 
 ## As a background service (Linux with systemd)
 
@@ -41,8 +47,8 @@ It asks for the port and a password (or makes a strong one up), then:
 - **Only on your home network:** nothing to forward; players use the server's
   local IP.
 
-Players type the address, port and password into the co-op installer
-(`setup.py`), or later into `scripts/RDR2Coop.ini` (`Server=`, `Port=`, `Password=`).
+Players put the address, port and password into the Linux installer
+(`setup.py`) or `scripts/RDR2Coop.ini` (`Server=`, `Port=`, `Password=`).
 
 ## Security
 

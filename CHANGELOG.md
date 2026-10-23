@@ -3,6 +3,13 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.4.2 (23 Oct 2026) - protocol 13
+- The server is its own small download ("Server"), separate from the Linux
+  installer, with steps for Windows, macOS and Linux.
+- The readme covers installing by hand on Linux too (protontricks for .NET 4.8),
+  so the installer download is optional everywhere.
+- No changes to how the mod plays; 0.4.x versions play together.
+
 ## 0.4.1 (23 Oct 2026) - protocol 13
 - Downloads split: the main file is now just the mod (RDR2Coop.dll, settings,
   readme). The Linux installer and the server kit are a separate optional
