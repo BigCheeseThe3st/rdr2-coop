@@ -112,6 +112,12 @@ namespace RDR2Coop.Mod
                 return null;
             }
             if (_mode != Mode.Password) return null;
+            // The game's keyboard only shows built-in text as its title: ours goes above it.
+            DrawLines(new List<(string, Color)>
+            {
+                ($"Room password for '{_picked.Name}'", Color.FromArgb(255, 200, 40, 40)),
+                ("Type it, then Enter to join (Esc goes back to the list)", Color.White),
+            });
             int status = MISC.UPDATE_ONSCREEN_KEYBOARD();
             if (status == 1)
             {
@@ -148,7 +154,11 @@ namespace RDR2Coop.Mod
                 lines.Add((text, r.Version != Protocol.Version || r.Players >= r.Max ? Color.Gray : i == _selected ? Color.Gold : Color.White));
             }
             if (_message != null) lines.Add((_message, Color.LightGray));
+            DrawLines(lines);
+        }
 
+        static void DrawLines(List<(string text, Color color)> lines)
+        {
             const float x = 40f, y = 60f, line = 22f;
             new ContainerElement(new PointF(x - 12f, y - 10f), new SizeF(640f, line * lines.Count + 20f), Color.FromArgb(190, 0, 0, 0)).ScaledDraw();
             for (int i = 0; i < lines.Count; i++)

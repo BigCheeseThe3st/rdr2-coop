@@ -3,6 +3,11 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.2 (23 Oct 2026) - protocol 13
+- The server browser's password box says what it's for: "Room password for
+  '<game>'", with Enter to join and Esc to go back (the game's keyboard can't
+  show a title of its own).
+
 ## 0.6.1 (23 Oct 2026) - protocol 13
 - The online room list is live: the server browser (F10 twice) now also shows
   games whose host set Public=Yes, and the installers ask hosts whether to list
