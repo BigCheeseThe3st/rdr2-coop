@@ -8,8 +8,10 @@ Nexus page: https://www.nexusmods.com/reddeadredemption2/mods/11238
 
 ## Download
 From [Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases):
-- `RDR2-Coop-Full-<version>.zip`: everything in one: the mod, the server and the
-  Linux installer. Start here.
+- **Windows:** `RDR2-Coop-Windows-<version>.zip`: the mod, the server and
+  `RDR2CoopSetup.exe`, which installs everything (see README-WINDOWS.txt inside).
+- **Linux:** `RDR2-Coop-Full-<version>.zip`: the mod, the server and the Linux
+  installer (`python3 setup.py`).
 - `RDR2-Coop-<version>.zip`, `RDR2-Coop-Server-<version>.zip`,
   `RDR2-Coop-Linux-Installer-<version>.zip`: the same, as separate pieces
   (the mod and server are also on Nexus).
@@ -19,8 +21,8 @@ ScriptHookRDR2DotNet V2 (https://github.com/Halen84/ScriptHookRDR2DotNet-V2/rele
 the Linux installer fetches both if they're missing.
 
 ## Install
-- **Windows:** follow "INSTALL" in README-PLAYERS.txt (copy two files into the
-  game's scripts folder and fill in RDR2Coop.ini; about 5 minutes).
+- **Windows:** unpack the Windows zip and double-click `RDR2CoopSetup.exe` (it's
+  unsigned: "More info", then "Run anyway"). Or by hand: "INSTALL" in README-PLAYERS.txt.
 - **Linux (Steam + Proton):** unpack the Full zip and run `python3 setup.py` in
   it. It finds the game, sets up the script hooks, asks your name, the server,
   the room password and whether you usually host. On a brand-new install it offers

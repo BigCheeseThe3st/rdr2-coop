@@ -4,6 +4,7 @@
 #   RDR2-Coop-Server-<v>.zip                optional: the server (relay + guide + Linux service)
 #   RDR2-Coop-Linux-Installer-<v>.zip       optional: setup.py + prefix script
 #   RDR2-Coop-Full-<v>.zip                  GitHub release: the three above in one
+#   RDR2-Coop-Windows-<v>.zip               GitHub release: mod + server + Windows installer exe
 #   RDR2-Coop-enRage-Patch-<pv>.zip         optional: the enRage co-op patch (binary patch)
 # All unpack into a folder called RDR2-Coop, so they land together. The main file
 # stays minimal (no scripts, no third-party binaries) so it doesn't wait on
@@ -145,6 +146,16 @@ rm -rf "$TOOLS/__pycache__"
 # GitHub: everything but the enRage patch in one zip (mod + server + Linux installer).
 mkdir -p release/.stage/full && cp -r "$MAIN" release/.stage/full/ && cp -r "$SERVER"/. "$TOOLS"/. release/.stage/full/$N/
 (cd release/.stage/full && zip -qr "../../upload/RDR2-Coop-Full-$VERSION.zip" "$N")
+
+# GitHub: Windows version: the mod + server + RDR2CoopSetup.exe, with
+# ScriptHookRDR2DotNet V2 bundled (zlib licence) since Windows can't unpack its .rar.
+dotnet build tools/WinSetup/RDR2CoopSetup.csproj -c Release -nologo -v q > /dev/null
+WIN=release/.stage/win/$N
+mkdir -p release/.stage/win && cp -r "$MAIN" release/.stage/win/ && cp -r "$SERVER"/. "$WIN"/
+cp tools/WinSetup/bin/Release/net48/RDR2CoopSetup.exe tools/WinSetup/bin/Release/net48/RDR2CoopSetup.exe.config "$WIN/"
+mkdir -p "$WIN/scripthookdotnet" && cp vendor/scripthookdotnet/* "$WIN/scripthookdotnet/"
+cp tools/WinSetup/README-WINDOWS.txt "$WIN/"
+(cd release/.stage/win && zip -qr "../../upload/RDR2-Coop-Windows-$VERSION.zip" "$N")
 (cd release/.stage/addon && zip -qr "../../upload/RDR2-Coop-enRage-Patch-$PATCH_VERSION.zip" "$N")
 grep -qx "coop $VERSION" "$BUILT" || echo "coop $VERSION" >> "$BUILT"
 grep -qx "enrage-patch $PATCH_VERSION $PATCHED_SHA" "$BUILT" || echo "enrage-patch $PATCH_VERSION $PATCHED_SHA" >> "$BUILT"
