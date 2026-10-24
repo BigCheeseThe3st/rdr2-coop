@@ -81,8 +81,8 @@ Bugs: the Discord's #bug-reports (each report is copied here automatically), or 
 
 ## Support
 RDR2 Co-op is free and stays free: tips don't buy features or early access. If you'd like to chip in:
-[ko-fi.com/bigcheesethe3st](https://ko-fi.com/bigcheesethe3st). At least 30% of every tip goes to the
-[Wildlife Conservation Society](https://www.wcs.org); each month's total is posted in the Discord. The mod's Nexus
+[ko-fi.com/bigcheesethe3st](https://ko-fi.com/bigcheesethe3st). Every tip goes to the
+[Wildlife Conservation Society](https://www.wcs.org) (all of it, after the card payment fee); each month's total is posted in the Discord. The mod's Nexus
 Donation Points go there too, apart from 10% to enRage's author.
 
 ## Licence
