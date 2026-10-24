@@ -101,7 +101,10 @@ namespace RDR2Coop.Mod
 
         void Start()
         {
-            // BaseDirectory is the game folder, not scripts\, so look in both.
+            // The game runs .NET with SSL 3 and TLS 1.0 only (seen under Proton; Windows without strong
+            // crypto set does the same): GitHub, where updates come from, wants TLS 1.2.
+            System.Net.ServicePointManager.SecurityProtocol |= System.Net.SecurityProtocolType.Tls12;
+            // BaseDirectory is the folder the mod's DLL is in (scripts\); the settings may sit beside it or one level down.
             string iniPath = Path.Combine(BaseDirectory, "scripts", "RDR2Coop.ini");
             if (!File.Exists(iniPath)) iniPath = Path.Combine(BaseDirectory, "RDR2Coop.ini");
             if (!File.Exists(iniPath)) Log("settings file not found next to the game or in scripts\\; using defaults");
@@ -141,7 +144,9 @@ namespace RDR2Coop.Mod
                                          () => _link != null && _link.IAmHost ? (_party.IsHosting ? "End the mission party" : "Start a mission party (invites everyone)") : null,
                                          () => _party.Toggle(_link), _browserKey != Keys.None ? _browserKey : _statusKey,
                                          () => _updater?.MenuLabel, () => _updater?.Begin());
-            _updater = new Updater(Path.Combine(BaseDirectory, "scripts", "RDR2Coop.dll"),
+            string dll = Path.Combine(BaseDirectory, "RDR2Coop.dll");   // where ScriptHookRDR2DotNet loaded us from
+            if (!File.Exists(dll)) dll = Path.Combine(BaseDirectory, "scripts", "RDR2Coop.dll");
+            _updater = new Updater(dll,
                                    !ini.Get("Coop", "UpdateCheck", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase));
             var to = ini.Get("Testing", "TravelTo", "-283,790,118").Split(',');
             _travelTo = to.Length == 3 && float.TryParse(to[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)

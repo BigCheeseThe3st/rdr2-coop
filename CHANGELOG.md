@@ -3,6 +3,15 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.2 (24 Oct 2026) - protocol 13
+- The update check works: it couldn't reach GitHub ("Could not create SSL/TLS
+  secure channel" in RDR2Coop.log), because the game's .NET only offers old
+  TLS versions (seen under Proton, and possible on Windows); the mod now
+  turns on TLS 1.2. 0.7.0 and 0.7.1 can't fetch this update themselves:
+  install it the usual way once.
+- The update puts the new mod where the old one is (it looked for a scripts
+  folder inside the scripts folder: "Could not find a part of the path").
+
 ## 0.7.1 (24 Oct 2026) - protocol 13
 - Your partners now see the weapon in your hand: draw a revolver, rifle, bow
   or lasso and it shows on your character in their game. Your shooting works
