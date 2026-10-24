@@ -109,7 +109,8 @@ IF F10 DOES NOTHING
 HELP
   Discord: https://discord.gg/NAYzjAaQDs (help, screen-share fixes, people to play with)
   Questions and ideas: https://github.com/BigCheeseThe3st/rdr2-coop/discussions
-  Bugs: https://github.com/BigCheeseThe3st/rdr2-coop/issues (attach scripts/RDR2Coop.log)
+  Bugs: the Discord's #bug-reports (copied to GitHub for you), or
+       https://github.com/BigCheeseThe3st/rdr2-coop/issues (attach scripts/RDR2Coop.log)
 
 Credits: ScriptHookRDR2 by Alexander Blade; ScriptHookRDR2DotNet V2 by crosire
 and Halen84. Neither is included; get them from the links above.
