@@ -101,6 +101,7 @@ IF F10 DOES NOTHING
     scripts/RDR2Coop.log.
 
 HELP
+  Discord: https://discord.gg/NAYzjAaQDs (help, screen-share fixes, people to play with)
   Questions and ideas: https://github.com/BigCheeseThe3st/rdr2-coop/discussions
   Bugs: https://github.com/BigCheeseThe3st/rdr2-coop/issues (attach scripts/RDR2Coop.log)
 
