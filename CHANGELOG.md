@@ -4,9 +4,10 @@ Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
 ## 0.7.1 (24 Oct 2026) - protocol 13
-- Partners' characters hold the weapon that's in their hand: draw a revolver,
-  rifle, bow or lasso and the others see it (for show only: it can't fire).
-  Players on 0.7.0 or older don't send it, so they still look empty-handed.
+- Your partners now see the weapon in your hand: draw a revolver, rifle, bow
+  or lasso and it shows on your character in their game. Your shooting works
+  exactly as before. Players on 0.7.0 or older don't send it, so they still
+  look empty-handed.
 
 ## 0.7.0 (24 Oct 2026) - protocol 13
 - Plays with 0.6.3 to 0.6.6 (same protocol); the time, weather, horse and
