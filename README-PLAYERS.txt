@@ -76,6 +76,12 @@ RUNNING A SEPARATE SERVER (optional: always on, e.g. a Raspberry Pi or VPS)
 
 IN GAME
   Load your story save; a subtitle says when you've joined.
+  Everyone plays their own save, and the host's story is the one you share:
+  the player whose story you want to play hosts, and the others come along
+  (their own saves don't change). A save still in Chapter 1 keeps you in the
+  snowy mountains with the map locked, so to join someone, be past Chapter 1
+  (finish it, or load a save from the start of Chapter 2). A host in Chapter 1
+  is fine: the mission party (F10 twice) brings friends to them.
   F10 twice opens the co-op menu: start or end a mission party (host), host
   your own game again after joining someone else's, and the server browser.
   Insert reloads the mod, F10 shows co-op status,

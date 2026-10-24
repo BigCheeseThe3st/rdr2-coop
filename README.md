@@ -38,6 +38,12 @@ the Linux installer fetches both if they're missing.
 Load a story save; a subtitle says when you've joined. Settings live in
 `scripts/RDR2Coop.ini`, the log in `scripts/RDR2Coop.log` in the game folder.
 
+Everyone plays their own save, and the host's story is the one you share: the player whose
+story you want to play hosts, and the others come along (their own saves don't change). A save
+still in Chapter 1 keeps you in the snowy mountains with the map locked, so to join someone, be
+past Chapter 1 (finish it, or load a save from the start of Chapter 2). A host in Chapter 1 is
+fine: the mission party (F10 twice) brings friends to them.
+
 ## Server
 The host's game runs it: `RunServer=Yes` in their RDR2Coop.ini (`src/Net/Relay.cs`,
 with UPnP from `src/Net/Upnp.cs`); friends point `Server=` at the host, or find it with
