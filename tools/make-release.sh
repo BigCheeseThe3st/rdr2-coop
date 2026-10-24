@@ -42,6 +42,7 @@ ADDON=release/.stage/addon/$N
 UPLOAD=release/upload
 
 ./build.sh
+tools/check-shdn-newer.sh
 rm -rf release/.stage "$UPLOAD" && mkdir -p "$MAIN/scripts" "$TOOLS" "$SERVER/server" "$ADDON/enrage-coop-patch" "$UPLOAD"
 
 # Main file: only what goes in the game's scripts folder, and how.

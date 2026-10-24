@@ -3,6 +3,13 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.5 (24 Oct 2026) - protocol 13
+- Works with ScriptHookRDR2DotNet builds made after its 2.2.0 release (they
+  still call themselves 2.2.0, but dropped Global.GetInt): the mod was aborted
+  on its first tick with "Method not found: 'Int32 RDR2.Global.GetInt()'".
+  Every release is now checked against that later version too
+  (tools/check-shdn-newer.sh).
+
 ## 0.6.4 (24 Oct 2026) - protocol 13
 - An error inside the mod no longer gets it stopped by ScriptHookRDR2DotNet
   (which left F10 doing nothing): it is written to scripts/RDR2Coop.log, shown

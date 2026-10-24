@@ -60,7 +60,7 @@ namespace RDR2Coop.Mod
             if (!_checkedGlobal)
             {
                 _checkedGlobal = true;
-                int g = Game.GetGlobalPtr(35).GetInt(), me = PLAYER.PLAYER_PED_ID();
+                int g = GInt(35), me = PLAYER.PLAYER_PED_ID();
                 string mud = GlobalText(StoryMissionTable + 1 + StoryMissionSize * 4 + 3, 32);
                 GlobalsOk = g == me && mud == "mudtown1";
                 CoopScript.Log($"script globals: global 35 = {g}, player ped = {me}, mission table [4] = '{mud}' -> " +
@@ -86,7 +86,7 @@ namespace RDR2Coop.Mod
         // globals. Read-only.
         void ReadStage()
         {
-            int scene = Game.GetGlobalPtr(SceneHandle).GetInt();
+            int scene = GInt(SceneHandle);
             InMissionScene = scene != 0 && ANIMSCENE.DOES_ANIM_SCENE_EXIST(scene) && ANIMSCENE.IS_ANIM_SCENE_RUNNING(scene, false);
             string label = InMissionScene ? GlobalText(SceneLabel, 24) : null;
             if (label != _lastScene)
@@ -94,10 +94,10 @@ namespace RDR2Coop.Mod
                 CoopScript.Log(label != null ? $"story cutscene playing: {label}" : $"story cutscene over: {_lastScene}");
                 _lastScene = label;
             }
-            int checkpoint = Game.GetGlobalPtr(StageInfo + 9).GetInt();
+            int checkpoint = GInt(StageInfo + 9);
             if (checkpoint != _lastCheckpoint && checkpoint >= -1 && checkpoint < 64)
             {
-                CoopScript.Log($"mission stage: record {Game.GetGlobalPtr(StageInfo + 8).GetInt()}, checkpoint {checkpoint}, next {Game.GetGlobalPtr(StageInfo + 10).GetInt()}");
+                CoopScript.Log($"mission stage: record {GInt(StageInfo + 8)}, checkpoint {checkpoint}, next {GInt(StageInfo + 10)}");
                 _lastCheckpoint = checkpoint;
             }
         }
@@ -107,21 +107,31 @@ namespace RDR2Coop.Mod
         // at one could press it.
         void ReadPrompts()
         {
-            int count = Math.Min(Game.GetGlobalPtr(PromptTable).GetInt(), 64);
+            int count = Math.Min(GInt(PromptTable), 64);
             var parts = new List<string>();
             for (int n = 0; n < count; n++)
             {
                 int b = PromptTable + 1 + PromptSize * n;
-                int prompt = Game.GetGlobalPtr(b + 3).GetInt();
+                int prompt = GInt(b + 3);
                 if (prompt == 0 || !HUD._UI_PROMPT_IS_VALID(prompt)) continue;
-                var at = Game.GetGlobalPtr(b + 6).GetVector3();
-                parts.Add($"#{n} prompt {prompt} active {HUD._UI_PROMPT_IS_ACTIVE(prompt)} control {(uint)Game.GetGlobalPtr(b + 4).GetInt():X8} " +
-                          $"at {at} r {Game.GetGlobalPtr(b + 9).GetFloat():0.0} ped {Game.GetGlobalPtr(b + 11).GetInt()}");
+                var at = GVec(b + 6);
+                parts.Add($"#{n} prompt {prompt} active {HUD._UI_PROMPT_IS_ACTIVE(prompt)} control {(uint)GInt(b + 4):X8} " +
+                          $"at {at} r {GFloat(b + 9):0.0} ped {GInt(b + 11)}");
             }
             string line = string.Join("; ", parts);
             if (line == _lastPrompts) return;
             _lastPrompts = line;
             CoopScript.Log($"mission prompts ({parts.Count} of {count} slots): {line}");
+        }
+
+        // Globals read through their raw address: ScriptHookRDR2DotNet builds made after
+        // its 2.2.0 release (still calling themselves 2.2.0) dropped Global.GetInt/GetFloat/GetVector3.
+        static unsafe int GInt(int global) { var p = (int*)Game.GetGlobalPtr(global).MemoryAddress; return p == null ? 0 : *p; }
+        static unsafe float GFloat(int global) { var p = (float*)Game.GetGlobalPtr(global).MemoryAddress; return p == null ? 0f : *p; }
+        static unsafe RDR2.Math.Vector3 GVec(int global)
+        {
+            var p = (float*)Game.GetGlobalPtr(global).MemoryAddress;   // x, y, z each in its own 8-byte slot
+            return p == null ? default(RDR2.Math.Vector3) : new RDR2.Math.Vector3(p[0], p[2], p[4]);
         }
 
         // Text stored inline in globals (8-byte slots), as the scripts keep labels.
