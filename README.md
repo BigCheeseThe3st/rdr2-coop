@@ -79,5 +79,11 @@ Discord: [discord.gg/NAYzjAaQDs](https://discord.gg/NAYzjAaQDs) for help (we can
 Questions and ideas: [Discussions](https://github.com/BigCheeseThe3st/rdr2-coop/discussions).
 Bugs: the Discord's #bug-reports (each report is copied here automatically), or [Issues](https://github.com/BigCheeseThe3st/rdr2-coop/issues), with `scripts/RDR2Coop.log` from your game folder.
 
+## Support
+RDR2 Co-op is free and stays free: tips don't buy features or early access. If you'd like to chip in:
+[ko-fi.com/bigcheesethe3st](https://ko-fi.com/bigcheesethe3st). At least 30% of every tip goes to the
+[Wildlife Conservation Society](https://www.wcs.org); each month's total is posted in the Discord. The mod's Nexus
+Donation Points go there too, apart from 10% to enRage's author.
+
 ## Licence
 MIT (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.

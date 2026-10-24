@@ -6,12 +6,16 @@
 //   POST /v1/agent/report    and reports results and the rooms running (both need AGENT_SECRET)
 // One Durable Object keeps the state (src/logic.js decides); an alarm each minute keeps the pinned
 // post honest, so it says "offline" when the Pi goes quiet. Secrets: DISCORD_TOKEN, AGENT_SECRET.
-import { empty, requestStart, requestStop, poll, report, statusText } from './logic.js'
+// Each server gets a voice channel in Matchmaking (George: "locked to whoever is allowed to join the DS"):
+// its starter is let in, anyone else presses its button and types the server's password.
+import { empty, requestStart, requestStop, poll, report, statusText, statusButtons, voicePlan, checkVoice } from './logic.js'
 
 const API = 'https://discord.com/api/v10'
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
 const hex = h => new Uint8Array((h.match(/../g) || []).map(b => parseInt(b, 16)))
 const reply = content => json({ type: 4, data: { content, flags: 64 } })   // only the person who clicked sees it
+const VIEW = String(1 << 10), CONNECT = String(1 << 20), VOICE = '36701696'   // VOICE: view, connect, speak, video, voice activity
+const sha = async t => [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(t)))].map(b => b.toString(16).padStart(2, '0')).join('')
 
 async function fromDiscord(req, body, env) {
   const sig = req.headers.get('x-signature-ed25519'), ts = req.headers.get('x-signature-timestamp')
@@ -32,6 +36,8 @@ function sameSecret(a, b) {
 const FORM = { type: 9, data: { custom_id: 'rooms:form', title: 'Start a dedicated server', components: [
   { type: 1, components: [{ type: 4, custom_id: 'name', label: 'Server name (shown in the in-game browser)', style: 1, min_length: 2, max_length: 30, required: true }] },
   { type: 1, components: [{ type: 4, custom_id: 'password', label: 'Password (give it only to your friends)', style: 1, min_length: 4, max_length: 64, required: true }] }] } }
+const VOICE_FORM = port => ({ type: 9, data: { custom_id: `rooms:vform:${port}`, title: "Join this server's voice chat", components: [
+  { type: 1, components: [{ type: 4, custom_id: 'password', label: "The server's password", style: 1, min_length: 4, max_length: 64, required: true }] }] } })
 
 async function interaction(req, env) {
   const body = await req.text()
@@ -44,6 +50,13 @@ async function interaction(req, env) {
   const call = (path, data) => room.fetch('https://do' + path, { method: 'POST', body: JSON.stringify(data) }).then(r => r.json())
   if (i.type === 3 && i.data?.custom_id === 'rooms:start') return json(FORM)
   if (i.type === 3 && i.data?.custom_id === 'rooms:stop') return reply((await call('/stop', who)).why)
+  const vb = /^rooms:voice:(\d+)$/.exec(i.data?.custom_id ?? ''), vf = /^rooms:vform:(\d+)$/.exec(i.data?.custom_id ?? '')
+  if (i.type === 3 && vb) return json(VOICE_FORM(vb[1]))
+  if (i.type === 5 && vf) {
+    const password = (i.data.components ?? []).flatMap(r => r.components ?? []).find(c => c.custom_id === 'password')?.value
+    const r = await call('/voice', { user: who.owner, port: vf[1], password })
+    return reply(r.ok ? `You're in: <#${r.channel}>. Click it to join the voice chat.` : r.why)
+  }
   if (i.type === 5 && i.data?.custom_id === 'rooms:form') {
     const v = Object.fromEntries((i.data.components ?? []).flatMap(r => r.components ?? []).map(c => [c.custom_id, c.value]))
     const r = await call('/start', { ...who, name: v.name, password: v.password, token: i.token })
@@ -69,18 +82,31 @@ export default {
 export class Sessions {
   constructor(state, env) { this.state = state; this.env = env }
 
-  async load() { return (await this.state.storage.get('s')) ?? empty() }
+  async load() { return this.s ??= (await this.state.storage.get('s')) ?? empty() }   // one shared copy: no lost updates while awaiting Discord
   async save(s) { await this.state.storage.put('s', s); if (!(await this.state.storage.getAlarm())) await this.state.storage.setAlarm(Date.now() + 60_000) }
 
   async fetch(req) {
     const path = new URL(req.url).pathname, data = await req.json().catch(() => ({})), now = Date.now(), s = await this.load()
     let out
-    if (path === '/start') out = requestStart(s, data, now)
+    if (path === '/start') {
+      data.salt = crypto.randomUUID(); data.hash = await sha(data.salt + String(data.password ?? ''))
+      out = requestStart(s, data, now)
+    }
+    else if (path === '/voice') {
+      const lock = s.locks?.[data.port]
+      out = checkVoice(s, String(data.user), String(data.port), lock ? await sha(lock.salt + String(data.password ?? '')) : '', now)
+      if (out.ok && !(await this.discord('PUT', `/channels/${out.channel}/permissions/${data.user}`, { type: 1, allow: VOICE, deny: '0' })).ok)
+        out = { ok: false, why: "Couldn't open the voice chat for you. Ask a moderator." }
+    }
     else if (path === '/stop') out = requestStop(s, data.owner, now)
     else if (path === '/poll') out = { jobs: poll(s, now) }
     else if (path === '/report') {
       const replies = report(s, data, now)
-      for (const r of replies) await this.tell(r.token, s, r.content, data)
+      await this.voice(s)
+      for (const r of replies) {
+        const v = r.port && s.locks?.[r.port]?.voice
+        await this.tell(r.token, s, r.content + (v ? `\nYour group's voice chat: <#${v}>. You're already let in; friends press its 🔊 button in the pinned post and type the password.` : ''))
+      }
       out = { ok: true }
     }
     await this.save(s)
@@ -90,8 +116,37 @@ export class Sessions {
 
   async alarm() {
     const s = await this.load()
+    await this.voice(s)
     await this.refresh(s, Date.now())
     await this.state.storage.setAlarm(Date.now() + 60_000)
+  }
+
+  discord(method, path, body) {
+    return fetch(API + path, { method, headers: { Authorization: `Bot ${this.env.DISCORD_TOKEN}`, 'Content-Type': 'application/json',
+      'User-Agent': 'DiscordBot (https://github.com/BigCheeseThe3st/rdr2-coop, 1.0)' }, body: body === undefined ? undefined : JSON.stringify(body) })
+      .catch(() => ({ ok: false, status: 0 }))
+  }
+
+  // Voice channels follow the servers: made when one starts (starter and staff let in, everyone else
+  // sees it locked), deleted when it ends. Failures are retried on the next report or minute.
+  async voice(s) {
+    const plan = voicePlan(s)
+    for (const p of plan.create) {
+      const l = s.locks[p]
+      const staff = String(this.env.STAFF_ROLES || '').split(',').filter(Boolean).map(id => ({ id, type: 0, allow: VOICE, deny: '0' }))
+      const r = await this.discord('POST', `/guilds/${this.env.GUILD_ID}/channels`, { name: `${l.name} (dedicated)`, type: 2, user_limit: 4,
+        parent_id: this.env.MATCH_CATEGORY, permission_overwrites: [{ id: this.env.GUILD_ID, type: 0, allow: VIEW, deny: CONNECT },
+          { id: l.owner, type: 1, allow: VOICE, deny: '0' }, { id: this.env.APP_ID, type: 1, allow: VOICE, deny: '0' }, ...staff] })   // the bot too: Discord needs Connect to manage a voice channel
+      if (r.ok) l.voice = (await r.json()).id
+      else console.log('voice channel create failed', r.status)
+    }
+    for (const p of plan.remove) {
+      const v = s.locks[p].voice
+      const r = v ? await this.discord('DELETE', `/channels/${v}`) : { ok: true }
+      if (r.ok || r.status === 404 || r.status === 403) delete s.locks[p]   // 403: made before the bot let itself in; a moderator deletes it
+      else console.log('voice channel delete failed', r.status)
+    }
+    if (plan.create.length || plan.remove.length) await this.state.storage.put('s', s)
   }
 
   // The private reply to the person who asked: their form's reply thread while it lasts (15 minutes).
@@ -103,12 +158,11 @@ export class Sessions {
 
   // The pinned post's list of running servers, edited only when it changes.
   async refresh(s, now) {
-    const text = statusText(s, now)
-    if (text === (await this.state.storage.get('posted')) || !this.env.STATUS_THREAD) return
-    const r = await fetch(`${API}/channels/${this.env.STATUS_THREAD}/messages/${this.env.STATUS_THREAD}`, { method: 'PATCH',
-      headers: { Authorization: `Bot ${this.env.DISCORD_TOKEN}`, 'Content-Type': 'application/json', 'User-Agent': 'DiscordBot (https://github.com/BigCheeseThe3st/rdr2-coop, 1.0)' },
-      body: JSON.stringify({ content: text, allowed_mentions: { parse: [] } }) }).catch(() => null)
-    if (r && r.ok) await this.state.storage.put('posted', text)
+    const text = statusText(s, now), components = statusButtons(s), key = JSON.stringify([text, components])
+    if (key === (await this.state.storage.get('posted')) || !this.env.STATUS_THREAD) return
+    const r = await this.discord('PATCH', `/channels/${this.env.STATUS_THREAD}/messages/${this.env.STATUS_THREAD}`,
+      { content: text, components, allowed_mentions: { parse: [] } })
+    if (r.ok) await this.state.storage.put('posted', key)
     else console.log('status post edit failed', r && r.status)
   }
 }

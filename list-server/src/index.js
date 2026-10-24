@@ -38,7 +38,10 @@ function isPublicIpv4(s) {
            (a === 169 && b === 254) || (a === 100 && b >= 64 && b < 128));
 }
 
-const cleanName = (s) => (typeof s === "string" ? s.replace(/[\p{C}]/gu, "").trim().slice(0, 32) : "");
+// The one word kept out of room names (George: "bad-word filter for the N word please but nothing else"),
+// seen through spaces, punctuation and 1/3/4/@ for i/e/a.
+const slur = (s) => /nigg+(?:e+r|a|u+h|a+h|a+z)/.test(String(s ?? "").toLowerCase().replace(/[1!|]/g, "i").replace(/3/g, "e").replace(/[4@]/g, "a").replace(/[^a-z]/g, ""));
+const cleanName = (s) => { const n = typeof s === "string" ? s.replace(/[\p{C}]/gu, "").trim().slice(0, 32) : ""; return slur(n) ? "Co-op room" : n; };
 const int = (v, lo, hi) => (Number.isInteger(v) && v >= lo && v <= hi ? v : null);
 
 export class RoomList {
