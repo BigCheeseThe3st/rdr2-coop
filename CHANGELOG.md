@@ -3,6 +3,14 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.6 (24 Oct 2026) - protocol 13
+- Fixed "System.OverflowException: Arithmetic operation resulted in an overflow
+  at RDR2.Game.get_IsCutsceneActive()" every tick on Windows (it could work
+  once, then fail on the next launch). That ScriptHookRDR2DotNet 2.2.0 check is
+  broken (it reads the address of the game's cutscene slot as if it were the
+  cutscene); the mod now only uses its own reading of it, which was already
+  there. The build refuses the broken check from now on.
+
 ## 0.6.5 (24 Oct 2026) - protocol 13
 - Works with ScriptHookRDR2DotNet builds made after its 2.2.0 release (they
   still call themselves 2.2.0, but dropped Global.GetInt): the mod was aborted

@@ -96,7 +96,7 @@ namespace RDR2Coop.Mod
 
         public void OnAtObjective(byte from, ServerLink link, long now)
         {
-            if (!link.IAmHost || Game.InCutscene || MissionProbe.InMissionScene) return;
+            if (!link.IAmHost || MissionProbe.InMissionScene) return;
             _askedBy = from;
             _offerUntil = now + OfferMs;
             _lastSay = 0;

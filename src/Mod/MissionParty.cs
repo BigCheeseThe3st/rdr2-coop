@@ -145,7 +145,7 @@ namespace RDR2Coop.Mod
             if (link.IAmHost)
             {
                 // Story missions open with a cutscene: invite everyone then.
-                bool cut = Game.InCutscene || Game.IsCutsceneActive || MissionProbe.InMissionScene;
+                bool cut = MissionProbe.InMissionScene;
                 if (cut && !_hostWasInCutscene && _mode == Mode.None && now - _lastAutoInvite > AutoInviteEveryMs
                     && link.Roster.Count > 1)
                 {

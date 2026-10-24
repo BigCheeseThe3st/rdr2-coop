@@ -65,7 +65,6 @@ game runs the area around its player and shares it when players are within 150 m
 `mono build/FakePartner.exe 127.0.0.1 27450 walk|run|ride`. Insert reloads scripts in-game.
 
 ## Help, ideas, bugs
-Discord: [discord.gg/NAYzjAaQDs](https://discord.gg/NAYzjAaQDs) for help (we can look at your screen together), people to play with, and news.
 Questions and ideas: [Discussions](https://github.com/BigCheeseThe3st/rdr2-coop/discussions).
 Bugs: [Issues](https://github.com/BigCheeseThe3st/rdr2-coop/issues), with `scripts/RDR2Coop.log` from your game folder.
 

@@ -10,6 +10,9 @@ if [ ! -f "$API" ]; then
   bsdtar -xf build/shdn.rar -C lib ScriptHookRDRNetAPI.dll
 fi
 mkdir -p build dist/scripts
+# ScriptHookRDR2DotNet 2.2.0's Game.IsCutsceneActive (and InCutscene, its alias) casts the global's
+# address to int: on Windows that overflows and throws every tick. MissionProbe.InMissionScene reads it right.
+if grep -n 'Game\.\(IsCutsceneActive\|InCutscene\)' src/Mod/*.cs; then echo "use MissionProbe.InMissionScene, not Game.IsCutsceneActive/InCutscene"; exit 1; fi
 # The mod's version (VERSION, see CHANGELOG.md) baked in, for the log and F10.
 printf 'namespace RDR2Coop { static class BuildInfo { public const string Version = "%s"; } }\n' "$(tr -d ' \n' < VERSION)" > build/BuildInfo.cs
 # Compile against .NET Framework 4.8's reference assemblies, not mono's own

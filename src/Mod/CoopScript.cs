@@ -587,7 +587,7 @@ namespace RDR2Coop.Mod
                 Velocity = ToNet(me.Velocity),
             };
             if (me.IsDead) s.Flags |= StateFlags.Dead;
-            if (Game.InCutscene || Game.IsCutsceneActive || MissionProbe.InMissionScene) s.Flags |= StateFlags.InCutscene;
+            if (MissionProbe.InMissionScene) s.Flags |= StateFlags.InCutscene;
             if (MissionProbe.StoryMission) s.Flags |= StateFlags.InMission;
             if (CAM.IS_SCREEN_FADED_OUT() || CAM.IS_SCREEN_FADING_OUT()) s.Flags |= StateFlags.ScreenFaded;
             if (_down.IsDown) s.Flags |= StateFlags.Downed;

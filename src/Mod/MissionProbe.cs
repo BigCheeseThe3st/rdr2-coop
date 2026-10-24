@@ -82,7 +82,7 @@ namespace RDR2Coop.Mod
         }
 
         // Story cutscenes are anim scenes (not the game's "cutscene" system, so
-        // Game.InCutscene misses them); the stage engine keeps its checkpoint in
+        // ScriptHookRDR2DotNet's cutscene check misses them); the stage engine keeps its checkpoint in
         // globals. Read-only.
         void ReadStage()
         {
