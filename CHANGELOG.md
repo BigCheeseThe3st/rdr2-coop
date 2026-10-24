@@ -3,6 +3,15 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.6.4 (24 Oct 2026) - protocol 13
+- An error inside the mod no longer gets it stopped by ScriptHookRDR2DotNet
+  (which left F10 doing nothing): it is written to scripts/RDR2Coop.log, shown
+  on screen, and the mod carries on. If the mod can't start at all, F10 says
+  why. The log's first line names the ScriptHookRDR2DotNet version and Windows
+  version, so a report says what the player runs.
+- README: "If F10 does nothing" (laptop Fn key, the right ScriptHookRDR2DotNet,
+  "Aborted script" after Insert or quitting is normal, which logs to send).
+
 ## 0.6.3 (23 Oct 2026) - protocol 13
 - F10 twice is now the co-op menu: start or end a mission party (host), "Host
   your own game here" after joining someone else's room, and the server

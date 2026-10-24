@@ -81,8 +81,9 @@ namespace RDR2Coop.Mod
             KeyDown += OnKeyDown;
             Aborted += OnAborted;
 
+            Log($"RDR2 Co-op {BuildInfo.Version} (protocol {Protocol.Version}), ScriptHookRDR2DotNet {typeof(Script).Assembly.GetName().Version}, {Environment.OSVersion}");
             try { Start(); }
-            catch (Exception e) { Log("start failed: " + e); _status = "RDR2Coop: start failed, see RDR2Coop.log"; }
+            catch (Exception e) { Log("start failed: " + e); _status = "Co-op couldn't start: " + e.Message + " (details in scripts\\RDR2Coop.log)"; }
         }
 
         void Start()
@@ -142,7 +143,6 @@ namespace RDR2Coop.Mod
             MirrorWorld.DriveMode = ini.Get("Net", "DriveMode", MirrorWorld.DriveMode);
             MirrorWorld.VehicleMode = ini.Get("Net", "VehicleMode", MirrorWorld.VehicleMode).ToLowerInvariant();
             _sendEveryMs = 1000 / sendHz;
-            Log($"RDR2 Co-op {BuildInfo.Version} (protocol {Protocol.Version})");
             Log($"settings {iniPath} (exists {File.Exists(iniPath)}): name {name}, server {server}:{port}, " +
                 $"prefer host {preferHost}, send {sendHz} Hz, world {worldHz} Hz, smoothing {_smoothingMs} ms, retask {Peds.RetaskEveryMs} ms");
             if (password.Length == 0) Log("no Password set in RDR2Coop.ini; the server will refuse us");
@@ -319,7 +319,29 @@ namespace RDR2Coop.Mod
             _lastLookSent = 0;   // newcomers need our look
         }
 
+        // ScriptHookRDR2DotNet stops a script for good when its tick throws (F10 then
+        // does nothing at all): log the error, show it, and carry on instead.
         void OnTick(object sender, EventArgs e)
+        {
+            try { TickBody(); }
+            catch (Exception ex) { TickFailed(ex); }
+        }
+
+        string _lastError = "";
+        long _lastErrorMs;
+
+        void TickFailed(Exception ex)
+        {
+            long now = _clock.ElapsedMilliseconds;
+            string key = ex.GetType().Name + ": " + ex.Message;
+            if (key == _lastError && now - _lastErrorMs < 60000) return;   // the same error every tick: once a minute
+            _lastError = key;
+            _lastErrorMs = now;
+            Log("error in the tick: " + ex);
+            Say("Co-op error: " + key + " (details in scripts\\RDR2Coop.log)");
+        }
+
+        void TickBody()
         {
             if (_link == null) return;
             if (_travelPending) { _travelPending = false; TravelTo(_travelTo, _travelName); }
@@ -584,7 +606,12 @@ namespace RDR2Coop.Mod
 
         void OnKeyDown(object sender, KeyEventArgs e)
         {
-            if (_link == null) return;
+            if (_link == null)
+            {
+                // Start failed: the status key says why.
+                if (e.KeyCode == (_statusKey == Keys.None ? Keys.F10 : _statusKey) && _status.Length > 0) Say(_status);
+                return;
+            }
             if (_browser.IsOpen && (e.KeyCode == _browserKey || e.KeyCode == _statusKey)) { _browser.Toggle(); return; }
             if (_browserKey != Keys.None && e.KeyCode == _browserKey) { _browser.Toggle(); return; }
             if (_browser.OnKey(e.KeyCode)) return;

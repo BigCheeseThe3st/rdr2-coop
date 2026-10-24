@@ -91,6 +91,15 @@ UNINSTALL
   Windows: delete RDR2Coop.dll and RDR2Coop.ini from the game's scripts folder.
   Linux:   python3 setup.py --uninstall (also puts your official enRage back).
 
+IF F10 DOES NOTHING
+  - On a laptop F10 may be a media key: press Fn+F10, or set ShowStatus= in
+    scripts/RDR2Coop.ini to another key.
+  - ScriptHookRDR2DotNet must be V2 2.2.0 (link above), not the older
+    ScriptHookRDR2DotNet. Its log is ScriptHookRDRDotNet.log in the game folder.
+  - "Aborted script" there is normal after pressing Insert (that key reloads all
+    scripts) or quitting the game. Anything else: send us that log and
+    scripts/RDR2Coop.log.
+
 HELP
   Questions and ideas: https://github.com/BigCheeseThe3st/rdr2-coop/discussions
   Bugs: https://github.com/BigCheeseThe3st/rdr2-coop/issues (attach scripts/RDR2Coop.log)
