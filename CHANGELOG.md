@@ -3,6 +3,26 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.0 (24 Oct 2026) - protocol 13
+- Plays with 0.6.3 to 0.6.6 (same protocol); the time, weather, horse and
+  map-marker parts need both players on 0.7.0.
+- The mod tells you when a newer version is out, and F10 twice > "Update to x"
+  installs it: it downloads that release's mod file, checks it is signed with
+  the mod's release key (anything else is refused), and puts it in place;
+  Insert or a restart loads it, your settings stay. UpdateCheck=No in
+  RDR2Coop.ini turns it off. This version itself is installed the usual way.
+- The map shows every partner wherever they are: a marker with their name
+  follows them across the map (it was only there within 400 m, where their
+  character is in your game).
+- Time of day follows the host's game, and so does the weather while you're in
+  the host's area (off on your own you keep your region's weather).
+- Partners see your own horse as it is: breed, coat, saddle and tack.
+- TraceJoins also logs around story cutscenes starting and ending.
+- Tested 24 Oct with a fake partner through the prologue and Chapter 2: mission
+  party with a member through a cutscene, host switching both ways mid-mission,
+  horse look, clock and weather. The mission-marker scan stays off: it crashed
+  again when a mission started (markers from the story data are next).
+
 ## 0.6.6 (24 Oct 2026) - protocol 13
 - Fixed "System.OverflowException: Arithmetic operation resulted in an overflow
   at RDR2.Game.get_IsCutsceneActive()" every tick on Windows (it could work

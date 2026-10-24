@@ -27,15 +27,22 @@ namespace RDR2Coop.Mod
         {
             public Interpolator Interp;
             public Puppet Puppet;
+            public int FarBlip;            // their marker while too far for a puppet
+            public long FarBlipMs;
             public PlayerState Last;
             public bool HasLast;
             public long LastDriveMs;
             public Appearance Look;
             public bool HasLook;
             public uint AppliedLook;
+            public Appearance MountLook;   // their own horse's look (saddle, coat...)
+            public bool HasMountLook;
+            public uint AppliedMountLook;
+            public int AppliedMountHorse;
         }
 
         const float PuppetRange = 400f;   // further than this: no puppet (the area isn't loaded)
+        const ushort MountLookId = 0;     // EntityLook id meaning "the sender's own horse" (NPC ids start at 1)
         // The online room list (list-server/). ListServer= in the ini overrides; "off" turns it off.
         const string DefaultListServer = "https://rdr2coop-rooms.beese.workers.dev";
 
@@ -44,6 +51,7 @@ namespace RDR2Coop.Mod
         ServerLink _link;
         BuiltInServer _builtIn;
         ServerBrowser _browser;
+        Updater _updater;
         Keys _browserKey;          // None: the status key pressed twice opens the browser
         int _lastStatusKey;
         string _iniPath, _name = "", _password = "";
@@ -65,6 +73,9 @@ namespace RDR2Coop.Mod
         readonly MissionProbe _missionProbe = new MissionProbe();
         readonly MissionAssist _assist = new MissionAssist();
         readonly EnrageLink _enrage = new EnrageLink();   // run from the tick: waiting inside a key handler isn't safe
+        readonly EnvSync _env = new EnvSync();
+        long _lastMountCheck, _lastMountSent;
+        uint _mountSig;
         Vector3 _travelTo;
         string _travelName = "";
         long _lastRevivePrompt;
@@ -126,7 +137,10 @@ namespace RDR2Coop.Mod
             _browserKey = ParseKey(ini.Get("Keys", "ServerBrowser", ""), Keys.None);   // Home, F6...: taken by the game
             _browser = new ServerBrowser(listServer, IsOwnServer, () => _builtIn == null, () => _hostPassword,
                                          () => _link != null && _link.IAmHost ? (_party.IsHosting ? "End the mission party" : "Start a mission party (invites everyone)") : null,
-                                         () => _party.Toggle(_link), _browserKey != Keys.None ? _browserKey : _statusKey);
+                                         () => _party.Toggle(_link), _browserKey != Keys.None ? _browserKey : _statusKey,
+                                         () => _updater?.MenuLabel, () => _updater?.Begin());
+            _updater = new Updater(Path.Combine(BaseDirectory, "scripts", "RDR2Coop.dll"),
+                                   !ini.Get("Coop", "UpdateCheck", "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase));
             var to = ini.Get("Testing", "TravelTo", "-283,790,118").Split(',');
             _travelTo = to.Length == 3 && float.TryParse(to[0], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var tx)
                 && float.TryParse(to[1], System.Globalization.NumberStyles.Float, System.Globalization.CultureInfo.InvariantCulture, out var ty)
@@ -184,7 +198,11 @@ namespace RDR2Coop.Mod
             };
             _link.HitReceived += OnHit;
             _link.ObjectivesReceived += (from, list) => _assist.OnObjectives(from, list, _link);
-            _link.NoticeReceived += (from, n) => _enrage.OnNotice(from, n, _link, _clock.ElapsedMilliseconds);
+            _link.NoticeReceived += (from, n) =>
+            {
+                if (n.Kind == NoticeKind.Clock) { if (from == _link.HostId && !_link.IAmHost) _env.OnClock(n.Text, _owner == _link.HostId); return; }
+                _enrage.OnNotice(from, n, _link, _clock.ElapsedMilliseconds);
+            };
             _link.ActionReceived += (from, a) =>
             {
                 if (_owner == _link.MyId && _remotes.TryGetValue(from, out var r) && r.HasLast && r.Last.Following == _link.MyId)
@@ -192,6 +210,7 @@ namespace RDR2Coop.Mod
             };
             _link.EntityLookReceived += (from, id, a) =>
             {
+                if (id == MountLookId) { var r = RemoteFor(from); r.MountLook = a; r.HasMountLook = true; return; }
                 if (from == _owner && _owner != _link.MyId) _mirror.OnLook(id, a);
             };
             _link.AppearanceReceived += (from, a) =>
@@ -222,7 +241,7 @@ namespace RDR2Coop.Mod
         {
             _party.Leave();
             if (_down.IsDown) _down.GetUp(null, "disconnected");
-            foreach (var r in _remotes.Values) r.Puppet?.Delete();
+            foreach (var r in _remotes.Values) { r.Puppet?.Delete(); Blips.Remove(ref r.FarBlip); }
             _remotes.Clear();
             _assist.Clear();
             _enrage.Clear();
@@ -304,12 +323,13 @@ namespace RDR2Coop.Mod
 
         void OnRoster()
         {
-            _traceUntil = Environment.TickCount + 20000;
+            StartTrace();
             Trace("roster");
             var ids = new HashSet<byte>(_link.Roster.Select(e => e.Id));
             foreach (var id in _remotes.Keys.Where(id => !ids.Contains(id)).ToList())
             {
                 _remotes[id].Puppet?.Delete();
+                Blips.Remove(ref _remotes[id].FarBlip);
                 _remotes.Remove(id);
             }
             string who = string.Join(", ", _link.Roster.Select(e => e.Name + (e.Role == PlayerRole.Host ? " (host)" : "")));
@@ -349,6 +369,8 @@ namespace RDR2Coop.Mod
             _missionProbe.Tick(now);
             string note = _builtIn?.TakeNote();
             if (note != null) Say(note);
+            var meNow = Game.Player.Character;
+            if (meNow != null && meNow.Exists()) { string un = _updater?.TakeNote(); if (un != null) Say(un); }   // not over a loading screen
             if (_browser.IsOpen)
             {
                 var room = _browser.Tick(_password, out string pw);
@@ -417,6 +439,24 @@ namespace RDR2Coop.Mod
                 }
             }
 
+            // Our own horse's look, while we ride it (a horse's look is an EntityLook with id 0).
+            if (now - _lastMountCheck > 2000)
+            {
+                _lastMountCheck = now;
+                int mount = me.IsOnMount && me.CurrentMount != null ? me.CurrentMount.Handle : 0;
+                if (mount != 0)
+                {
+                    var look = Looks.Capture(mount);
+                    uint sig = look.Signature();
+                    if (sig != _mountSig || now - _lastMountSent > 15000)
+                    {
+                        _mountSig = sig;
+                        _lastMountSent = now;
+                        _link.SendEntityLook(MountLookId, look);
+                    }
+                }
+            }
+
             // Puppets for everyone close enough to be in a loaded area.
             var puppets = new Dictionary<byte, Puppet>();
             foreach (var kv in _remotes)
@@ -426,8 +466,10 @@ namespace RDR2Coop.Mod
                 {
                     r.Puppet?.Delete();
                     r.Puppet = null;
+                    FarMarker(r, kv.Key, now);
                     continue;
                 }
+                Blips.Remove(ref r.FarBlip);   // close enough: the puppet carries their marker
                 var st = r.Interp.Sample(now);
                 if (r.Puppet == null || r.Puppet.PedModel != st.PedModel)
                 {
@@ -448,6 +490,16 @@ namespace RDR2Coop.Mod
                 Trace($"puppet {kv.Key}: follow");
                 int vehicle = VehicleFor(r.Last, kv.Key, owner, myId);
                 r.Puppet.Follow(st, now, vehicle);
+                // Their horse's saddle and coat, once their horse is here (same breed only).
+                int horse = r.Puppet.HorseHandle;
+                if (horse != 0 && r.HasMountLook && r.MountLook.Model == r.Puppet.HorseModel
+                    && (r.MountLook.Signature() != r.AppliedMountLook || horse != r.AppliedMountHorse))
+                {
+                    Looks.Apply(horse, r.MountLook);
+                    r.AppliedMountLook = r.MountLook.Signature();
+                    r.AppliedMountHorse = horse;
+                    Log($"{_link.NameOf(kv.Key)}'s horse look applied ({r.MountLook.Tags.Count} pieces)");
+                }
                 // Our game runs the area and they drive one of our real vehicles:
                 // it follows the copy they steer in their game.
                 if (owner == myId && vehicle != 0 && (st.Flags & StateFlags.Driving) != 0
@@ -497,6 +549,7 @@ namespace RDR2Coop.Mod
             _enrage.Tick(_link, _down.IsDown, now);
             if (owner != myId) _enrage.DrawNames(owner, _mirror.HandleOf);
             Trace("tick: mission assist");
+            if (_link.IAmHost) _env.HostTick(_link, now);
             if (_link.IAmHost) _assist.HostTick(_link, id => _remotes.TryGetValue(id, out var x) && x.HasLast ? x.Last : (PlayerState?)null, now);
             else _assist.GuestTick(_link, _party.IsMember, hostState, now);
 
@@ -640,7 +693,8 @@ namespace RDR2Coop.Mod
                 string players = string.Join(", ", _link.Roster.Select(p => p.Name + (p.Role == PlayerRole.Host ? " (host)" : "")));
                 string area = _owner == 0 ? "-" : _owner == _link.MyId ? "your game" : _link.NameOf(_owner) + "'s game";
                 Say($"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
-                    (_builtIn != null ? " | " + _builtIn.Status : "") + (_browserKey == Keys.None ? $" | {_statusKey} again: server browser" : ""));
+                    (_builtIn != null ? " | " + _builtIn.Status : "") + (_updater?.Available != null ? $" | {_updater.Available} is out: F10 twice > Update" : "") +
+                    (_browserKey == Keys.None ? $" | {_statusKey} again: server browser" : ""));
             }
             else if (e.KeyCode == _spawnWagonKey)
             {
@@ -686,7 +740,7 @@ namespace RDR2Coop.Mod
 
         void OnAborted(object sender, EventArgs e)
         {
-            foreach (var r in _remotes.Values) r.Puppet?.Delete();
+            foreach (var r in _remotes.Values) { r.Puppet?.Delete(); Blips.Remove(ref r.FarBlip); }
             _mirror?.Clear();
             _party?.Leave();   // never leave us faded, frozen or without control
             if (_down != null && _down.IsDown) _down.GetUp(null, "co-op stopped");
@@ -694,6 +748,24 @@ namespace RDR2Coop.Mod
             _builtIn?.Dispose();
             AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);
             AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
+        }
+
+        // Too far away for a puppet: a named marker at where they are, moved once a
+        // second, so the map shows everyone in the session wherever they ride.
+        void FarMarker(Remote r, byte id, long now)
+        {
+            if (!r.HasLast) { Blips.Remove(ref r.FarBlip); return; }
+            if (r.FarBlip == 0 || !MAP.DOES_BLIP_EXIST(r.FarBlip))
+            {
+                r.FarBlip = MAP.BLIP_ADD_FOR_COORDS(MISC.GET_HASH_KEY("BLIP_STYLE_FRIENDLY"), ToGame(r.Last.Position));
+                if (r.FarBlip != 0) { MAP._SET_BLIP_NAME(r.FarBlip, _link.NameOf(id)); Blips.Mine.Add(r.FarBlip); }
+                r.FarBlipMs = now;
+            }
+            else if (now - r.FarBlipMs > 1000)
+            {
+                MAP.SET_BLIP_COORDS(r.FarBlip, ToGame(r.Last.Position));
+                r.FarBlipMs = now;
+            }
         }
 
         // Testing aid: there in one go, horse and all, on the ground.
@@ -723,15 +795,17 @@ namespace RDR2Coop.Mod
 
         static void Say(string text) => Screen.DisplaySubtitle(text);
 
-        // [Testing] TraceJoins=Yes: for 20 s after anyone joins or leaves, log a
-        // marker before each step of the tick, so the last line before a
-        // ScriptHook error names the step that failed.
+        // [Testing] TraceJoins=Yes: for 20 s after anyone joins or leaves, or a
+        // story cutscene starts or ends, log a marker before each step of the
+        // tick, so the last line before a ScriptHook error names the step that failed.
         internal static bool TraceOn;
         static int _traceUntil;
         internal static void Trace(string step)
         {
             if (TraceOn && Environment.TickCount - _traceUntil < 0) Log("trace " + step);
         }
+
+        internal static void StartTrace() => _traceUntil = Environment.TickCount + 20000;
 
         static readonly object LogLock = new object();   // the server and UPnP threads log too
 

@@ -13,3 +13,4 @@ bin/
 obj/
 list-server/.wrangler/
 node_modules/
+bug-sync/.wrangler/

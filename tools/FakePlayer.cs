@@ -15,7 +15,8 @@
 // record: also saves the real player's states and the world they send, with
 //   timings; replay: plays such a recording back as the owner (positions as
 //   recorded), looping, so you can watch copies follow real motion.
-// partner: joins after you and circles you 6 m away; your game runs the area
+// partner: joins after you and circles you 6 m away ("ride" copies your own
+//   horse once you ride; as host it leads and sends 03:00 + a thunderstorm); your game runs the area
 //   (you are near and joined first), so this tests your game serving NPCs to
 //   another player. "shoot" lands a 40-damage hit every 3 s on the nearest
 //   living animal (never your horse); "shoot-people" on anyone; "passenger"
@@ -75,10 +76,13 @@ static class FakePlayer
         };
         link.RosterChanged += () =>
         {
-            Console.WriteLine("roster: " + string.Join(", ", link.Roster.Select(e => $"{e.Id} {e.Name}{(e.Role == PlayerRole.Host ? " (host)" : "")}")));
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss} roster: " + string.Join(", ", link.Roster.Select(e => $"{e.Id} {e.Name}{(e.Role == PlayerRole.Host ? " (host)" : "")}")));
             if (party && partyId != 0 && partyStart < 0) { invited = false; other = 0; otherState = null; }   // ask again
         };
         link.Disconnected += r => Console.WriteLine("disconnected: " + r);
+        link.ObjectivesReceived += (from, list) =>
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss} mission markers from player {from}: {list.Count}" +
+                              string.Concat(list.Select(o => $" ({o.Position.X:0},{o.Position.Y:0})")));
         link.NoticeReceived += (from, n) => Console.WriteLine($"notice from player {from} ({n.Kind}):\n  " + (n.Text ?? "").Replace("\n", "\n  "));
         link.RosterChanged += () =>
         {
@@ -124,11 +128,17 @@ static class FakePlayer
         };
         link.PartyReceived += (from, m) =>
         {
-            Console.WriteLine($"party from player {from}: {m.Kind}");
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss} party from player {from}: {m.Kind}");
             if (m.Kind == PartyKind.Revive && m.Members != null && m.Members.Contains(link.MyId))
             {
                 revived = true;
                 Console.WriteLine($"revived by player {from}");
+            }
+            // partner: accept the host's mission party invites, like a guest pressing Y.
+            if (!owner && m.Kind == PartyKind.Invite && from == link.HostId)
+            {
+                link.SendParty(new PartyMsg { Kind = PartyKind.Accept, PartyId = m.PartyId });
+                Console.WriteLine($"{DateTime.Now:HH:mm:ss} accepted the mission party invite");
             }
             if (party && m.Kind == PartyKind.Accept && m.PartyId == partyId)
             {
@@ -150,6 +160,17 @@ static class FakePlayer
 
         float speed = mode == "ride" ? 7f : mode == "run" ? 4f : 1.4f;
         uint horseModel = ToolUtil.Joaat("a_c_horse_morgan_bay");
+        // ride: copy the real player's own horse (breed, saddle, coat) once they send its look,
+        // and send that look back as ours, so they see their own horse under us.
+        Appearance? theirHorse = null;
+        long lastHorseLook = 0, lastClock = 0;
+        link.EntityLookReceived += (from, id, a) =>
+        {
+            if (id != 0 || theirHorse.HasValue) return;
+            theirHorse = a;
+            horseModel = a.Model;
+            Console.WriteLine($"{DateTime.Now:HH:mm:ss} their horse's look: {a.Tags.Count} pieces (copying it)");
+        };
         uint seq = 0, worldSeq = 0;
         double angle = 0, npcAngle = 0;
         long lastReport = 0, lastShot = 0, lastWorld = 0, lastHitOnOther = 0, lastNpcShot = 0;
@@ -191,7 +212,8 @@ static class FakePlayer
                     s.Position = new Vec3(centre.X + 6f * (float)Math.Cos(angle), centre.Y + 6f * (float)Math.Sin(angle), centre.Z);
                     s.Velocity = new Vec3(-speed * (float)Math.Sin(angle), speed * (float)Math.Cos(angle), 0);
                     s.Heading = (float)((Math.Atan2(s.Velocity.Y, s.Velocity.X) * 180 / Math.PI - 90 + 360) % 360);
-                    s.Following = other;   // we share the real game's area
+                    // As host we lead (our own "area": the real game then shows our clock and weather).
+                    s.Following = link.IAmHost ? (byte)0 : other;   // else we share the real game's area
                     if (mode == "downed")
                     {
                         if (downAt == null && otherState != null) downAt = new Vec3(centre.X + 3, centre.Y, centre.Z);
@@ -237,6 +259,18 @@ static class FakePlayer
                     }
                 }
                 link.SendState(s);
+                if (mode == "ride" && theirHorse.HasValue && now - lastHorseLook > 5000)
+                {
+                    lastHorseLook = now;
+                    link.SendEntityLook(0, theirHorse.Value);
+                }
+                // As host: 03:00 and a thunderstorm, so the real game (our guest) visibly follows.
+                if (!owner && link.IAmHost && now - lastClock > 5000)
+                {
+                    lastClock = now;
+                    uint storm = ToolUtil.Joaat("THUNDERSTORM");
+                    link.SendNotice(Protocol.Broadcast, NoticeKind.Clock, $"3 0 0 {storm} {storm} 0");
+                }
 
                 if (owner && anchor != null && otherState != null && now - lastWorld >= 50)
                 {

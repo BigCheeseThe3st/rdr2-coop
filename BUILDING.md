@@ -32,7 +32,12 @@ assemblies itself).
 ```
 Downloads `lib/ScriptHookRDRNetAPI.dll` if missing, builds `dist/scripts/RDR2Coop.dll`
 against the .NET Framework 4.8 reference assemblies, and runs the network tests.
-`tools/make-release.sh` builds the download zips.
+`tools/make-release.sh` builds the download zips, and for the in-game update (src/Mod/Updater.cs)
+signs `RDR2Coop.dll` with the release key (`~/.config/rdr2-coop/release-signing.pem`, or
+`RELEASE_KEY=`) and writes `latest.txt`. Put `RDR2Coop.dll`, `RDR2Coop.dll.sig` and `latest.txt`
+on every GitHub release with the zips: players' mods find the newest version through
+`releases/latest/download/latest.txt`. Keep a backup of the key: without it no release can be
+signed, and players would have to update by hand to a mod built with a new key.
 
 (`tools/WinSetup` holds a Windows installer that isn't shipped:
 `dotnet build tools/WinSetup/RDR2CoopSetup.csproj -c Release`.)

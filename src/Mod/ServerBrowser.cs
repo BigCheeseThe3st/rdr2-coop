@@ -25,6 +25,8 @@ namespace RDR2Coop.Mod
         readonly Func<bool> _canHost;         // not running our own server: offer to
         readonly Func<string> _hostPassword;  // our own room's password, offered again
         readonly Func<string> _partyLabel;    // the mission party row's text, null when we don't host
+        readonly Func<string> _updateLabel;   // the update row's text, null when there is none
+        readonly Action _update;
         readonly Action _toggleParty;
         readonly Keys _closeKey;
         Mode _mode;
@@ -35,9 +37,11 @@ namespace RDR2Coop.Mod
         long _keyboardSince;
 
         public ServerBrowser(string listServer, Func<Room, bool> isOwn, Func<bool> canHost, Func<string> hostPassword,
-                             Func<string> partyLabel, Action toggleParty, Keys closeKey)
+                             Func<string> partyLabel, Action toggleParty, Keys closeKey, Func<string> updateLabel, Action update)
         {
             _partyLabel = partyLabel;
+            _updateLabel = updateLabel;
+            _update = update;
             _toggleParty = toggleParty;
             _closeKey = closeKey;
             _listServer = listServer ?? "";
@@ -65,6 +69,7 @@ namespace RDR2Coop.Mod
         {
             // The menu rows (decided here, on the game's thread) show at once; servers once found.
             var actions = new List<Room>();
+            if (_updateLabel() != null) actions.Add(new Room { Name = "Update", Version = Protocol.Version, Max = 4, Update = true });
             if (_partyLabel() != null) actions.Add(new Room { Name = "Mission party", Version = Protocol.Version, Max = 4, Party = true });
             if (_canHost()) actions.Add(new Room { Name = "Host your own game here", Version = Protocol.Version, Max = 4, HostHere = true });
             _rooms = actions;
@@ -102,6 +107,7 @@ namespace RDR2Coop.Mod
                     if (rooms == null || _selected >= rooms.Count) return true;
                     var room = rooms[_selected];
                     if (room.Party) { Close(); _toggleParty(); return true; }
+                    if (room.Update) { _update(); return true; }
                     if (!room.HostHere && room.Version != Protocol.Version) { _message = $"'{room.Name}' runs another co-op version (protocol {room.Version}, yours {Protocol.Version})."; return true; }
                     if (!room.HostHere && room.Players >= room.Max) { _message = $"'{room.Name}' is full."; return true; }
                     _picked = room;
@@ -165,7 +171,8 @@ namespace RDR2Coop.Mod
             {
                 var r = rooms[i];
                 string where = r.Lan ? "home network" : "online";
-                string text = r.Party ? $"{(i == _selected ? "> " : "   ")}{_partyLabel() ?? "Mission party (host only)"}"
+                string text = r.Update ? $"{(i == _selected ? "> " : "   ")}{_updateLabel() ?? "Updated: press Insert to load it"}"
+                            : r.Party ? $"{(i == _selected ? "> " : "   ")}{_partyLabel() ?? "Mission party (host only)"}"
                             : r.HostHere ? $"{(i == _selected ? "> " : "   ")}Host your own game here (your server, your story world)"
                             : $"{(i == _selected ? "> " : "   ")}{r.Name}   {r.Players}/{r.Max}   {where}" +
                               (r.Version != Protocol.Version ? "   (other version)" : "");

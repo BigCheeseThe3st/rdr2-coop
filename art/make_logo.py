@@ -168,8 +168,25 @@ def render_banner(w=1300, h=372):
     return vignette(grain(img), 0.45)
 
 
+def render_icon(size=1024):
+    """Server icon (Discord shows it round and small): the two hats and CO-OP,
+    big, inside the circle; none of the small print."""
+    S = 2
+    W = size * S
+    img = sky(W, W)
+    d = ImageDraw.Draw(img, "RGBA")
+    cx = W / 2
+    hat(d, cx - 0.155 * W, W * 0.33, 0.135 * W, DEEP, tilt=-0.07)
+    hat(d, cx + 0.155 * W, W * 0.33, 0.135 * W, DEEP, tilt=0.07)
+    centred(d, W * 0.38, "CO-OP", ImageFont.truetype(RYE, int(0.235 * W)), BONE, spacing=0.004 * W,
+            shadow=(0.008 * W, 0.010 * W, (120, 16, 12, 230)))
+    img = img.resize((size, size), Image.LANCZOS)
+    return vignette(grain(img), 0.35)
+
+
 if __name__ == "__main__":
     render_banner().save(HERE / "header-1300x372.png", optimize=True)
     render(1920, 1080, 1.0).save(HERE / "logo-1920x1080.png", optimize=True)
     render(1024, 1024, 0.62).save(HERE / "logo-1024.png", optimize=True)
+    render_icon().save(HERE / "icon-1024.png", optimize=True)
     print("wrote", HERE / "logo-1920x1080.png", HERE / "logo-1024.png")

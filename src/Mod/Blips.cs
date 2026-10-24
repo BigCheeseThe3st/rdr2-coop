@@ -1,5 +1,6 @@
 // Map markers on copies: whatever the owner's game marks (mission characters,
 // targets, enemies, mission wagons) gets a marker on the copy here too.
+using System.Collections.Generic;
 using RDR2.Native;
 
 namespace RDR2Coop.Mod
@@ -7,6 +8,7 @@ namespace RDR2Coop.Mod
     static class Blips
     {
         static bool _loggedHandle;
+        public static readonly HashSet<int> Mine = new HashSet<int>();   // our own markers (partners far away): never objectives
 
         // Largest marker handle we've been given: tells the objective scan
         // which handle range markers live in.
@@ -33,6 +35,7 @@ namespace RDR2Coop.Mod
         public static unsafe void Remove(ref int blip)
         {
             if (blip != 0 && MAP.DOES_BLIP_EXIST(blip)) { int b = blip; MAP.REMOVE_BLIP(&b); }
+            Mine.Remove(blip);
             blip = 0;
         }
     }

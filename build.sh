@@ -20,13 +20,13 @@ printf 'namespace RDR2Coop { static class BuildInfo { public const string Versio
 # real .NET 4.8 lacks, which compile fine and then fail with MissingMethodException.
 REF=/usr/lib/mono/4.8-api
 csc -nologo -warnaserror+ -target:library -langversion:7.3 -optimize+ -unsafe -nostdlib \
-  -r:$REF/mscorlib.dll -r:$REF/System.dll -r:$REF/System.Core.dll \
+  -r:$REF/mscorlib.dll -r:$REF/System.dll -r:$REF/System.Core.dll -r:$REF/System.Numerics.dll \
   -r:$REF/System.Xml.dll -r:$REF/System.Runtime.Serialization.dll -r:$REF/System.Windows.Forms.dll -r:$REF/System.Drawing.dll -r:"$API" \
   -out:dist/scripts/RDR2Coop.dll build/BuildInfo.cs src/Net/*.cs src/Mod/*.cs
 csc -nologo -warnaserror+ -target:exe -langversion:7.3 \
-  -out:build/NetTests.exe src/Net/*.cs tests/*.cs
+  -r:System.Numerics.dll -out:build/NetTests.exe src/Net/*.cs tests/*.cs
 csc -nologo -warnaserror+ -target:exe -langversion:7.3 \
-  -out:build/FakePlayer.exe src/Net/*.cs tools/Common.cs tools/FakePlayer.cs
+  -r:System.Numerics.dll -out:build/FakePlayer.exe src/Net/*.cs tools/Common.cs tools/FakePlayer.cs
 mono build/NetTests.exe
 (cd server && python3 -m unittest -q test_relay)
 cp RDR2Coop.ini dist/scripts/RDR2Coop.ini

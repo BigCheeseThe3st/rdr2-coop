@@ -26,6 +26,7 @@ namespace RDR2Coop.Net
         public bool Lan;
         public bool HostHere;   // the browser's "host your own game" row, not a server
         public bool Party;      // the browser's mission party row (host only)
+        public bool Update;     // the browser's "Update to x" row
     }
 
     public static class RoomList

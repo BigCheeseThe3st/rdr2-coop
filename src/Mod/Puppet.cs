@@ -13,6 +13,7 @@ namespace RDR2Coop.Mod
         public uint PedModel { get; private set; }
         public int Handle => _ped;
         public int HorseHandle => _horse;
+        public uint HorseModel => _horseModel;
         int _ped;
         int _horse;
         uint _horseModel;

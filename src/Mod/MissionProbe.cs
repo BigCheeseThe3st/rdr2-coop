@@ -92,6 +92,7 @@ namespace RDR2Coop.Mod
             if (label != _lastScene)
             {
                 CoopScript.Log(label != null ? $"story cutscene playing: {label}" : $"story cutscene over: {_lastScene}");
+                CoopScript.StartTrace();   // missions start and end around cutscenes: trace those moments too
                 _lastScene = label;
             }
             int checkpoint = GInt(StageInfo + 9);

@@ -45,6 +45,27 @@ UPLOAD=release/upload
 tools/check-shdn-newer.sh
 rm -rf release/.stage "$UPLOAD" && mkdir -p "$MAIN/scripts" "$TOOLS" "$SERVER/server" "$ADDON/enrage-coop-patch" "$UPLOAD"
 
+# The one-press update (src/Mod/Updater.cs) installs only a mod signed with the release
+# key, and learns the newest version from latest.txt: both go on the GitHub release
+# beside the zips (RDR2Coop.dll, RDR2Coop.dll.sig, latest.txt).
+KEY=${RELEASE_KEY:-$HOME/.config/rdr2-coop/release-signing.pem}
+[ -f "$KEY" ] || { echo "no release signing key at $KEY"; exit 1; }
+python3 - "$KEY" <<'PY' || { echo "the release key isn't the one in src/Net/UpdateCheck.cs: players would refuse this release"; exit 1; }
+import base64, subprocess, sys
+mod = subprocess.check_output(['openssl', 'rsa', '-in', sys.argv[1], '-noout', '-modulus'], stderr=subprocess.DEVNULL).decode().strip().split('=', 1)[1]
+sys.exit(0 if base64.b64encode(bytes.fromhex(mod)).decode() in open('src/Net/UpdateCheck.cs').read() else 1)
+PY
+cp dist/scripts/RDR2Coop.dll "$UPLOAD/RDR2Coop.dll"
+openssl dgst -sha256 -sign "$KEY" -out "$UPLOAD/RDR2Coop.dll.sig" "$UPLOAD/RDR2Coop.dll"
+openssl rsa -in "$KEY" -pubout -out release/.stage/release-key.pub 2>/dev/null
+openssl dgst -sha256 -verify release/.stage/release-key.pub -signature "$UPLOAD/RDR2Coop.dll.sig" "$UPLOAD/RDR2Coop.dll" >/dev/null \
+  || { echo "the release signature doesn't verify"; exit 1; }
+PROTO=$(sed -n 's/.*public const int Version = \([0-9]*\);.*/\1/p' src/Net/Protocol.cs)
+NOTES=$(awk -v v="## $VERSION " 'index($0, v) == 1 { on = 1; next } /^## / { on = 0 } on' CHANGELOG.md \
+  | awk '/^- / { if (n++) exit; sub(/^- /, ""); printf "%s", $0; next } n && /^  / { sub(/^ +/, " "); printf "%s", $0 }')   # the first entry, unwrapped
+printf '%s\n%s\n%s\n' "$VERSION" "$PROTO" "$NOTES" > "$UPLOAD/latest.txt"
+echo "signed RDR2Coop.dll for the in-game update; latest.txt says $VERSION (protocol $PROTO)"
+
 # Main file: only what goes in the game's scripts folder, and how.
 cp dist/scripts/RDR2Coop.dll RDR2Coop.ini "$MAIN/scripts/"
 cp README-PLAYERS.txt "$MAIN/"

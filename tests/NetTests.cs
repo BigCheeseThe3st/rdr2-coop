@@ -47,6 +47,9 @@ static class NetTests
         Run("world buffer blends vehicles incl. rotation", WorldBufferVehicles);
         Run("authority: alone, host first, lowest id, hysteresis", AuthorityBasics);
         Run("authority: chains end on the real owner, never loop", AuthorityChains);
+        Run("update check: versions compare figure by figure", UpdateVersions);
+        Run("update check: latest.txt read, odd versions refused", UpdateLatestText);
+        Run("update check: only the key's own signature passes", UpdateSignature);
         Run("built-in server answers padded browser queries only", BrowserQuery);
         // The same server tests against relay.py and the server built into the mod.
         foreach (bool builtIn in new[] { false, true })
@@ -71,6 +74,41 @@ static class NetTests
     }
 
     static void Check(bool ok, string what) { if (!ok) throw new Exception(what); }
+
+    // ---- update check ----
+    static void UpdateVersions()
+    {
+        Check(UpdateCheck.Newer("0.6.10", "0.6.9"), "0.6.10 after 0.6.9");
+        Check(UpdateCheck.Newer("0.7.0", "0.6.6"), "0.7.0 after 0.6.6");
+        Check(UpdateCheck.Newer("1.0", "0.9.9"), "1.0 after 0.9.9");
+        Check(!UpdateCheck.Newer("0.6.6", "0.6.6"), "same version");
+        Check(!UpdateCheck.Newer("0.6.7", "0.7.0-test"), "a test build of 0.7.0 is past 0.6.7");
+        Check(!UpdateCheck.Newer("0.6.5", "0.6.6"), "older");
+    }
+
+    static void UpdateLatestText()
+    {
+        Check(UpdateCheck.Parse("0.6.7\r\n13\r\nFixed the thing.\r\nAnd more.\r\n", out var v, out int p, out var notes), "parsed");
+        Check(v == "0.6.7" && p == 13 && notes == "Fixed the thing. And more.", $"fields: {v} {p} {notes}");
+        Check(!UpdateCheck.Parse("../../evil\n13", out _, out _, out _), "a path is not a version");
+        Check(!UpdateCheck.Parse("", out _, out _, out _), "empty");
+    }
+
+    // A throwaway key's signature of a known message (made with openssl dgst -sha256 -sign).
+    const string TestKey = "uDYsMNqPbjtL0gBXoAhoffbHwqM1t6XC1pZRKyfFGqD8V2XEVNhwucIVr6qapE5HnZvsRTawQfIVKr2pIIblggi/+WtazlztTtTQijMzGZgwIfwsAC8YlLJyAyc/npnIsOtng1nbZphWamolBwOS1LM/G0r6t+EyVxdlMQIPTylFfMI4EPOLta3AFApw6dVxsnkYbxvBLT3c52fuiHfQl7StHIPJKFIvi5Gf+a/YN+kgBQeZz98yL702KzvuZiMJGM+241zb78z9R+20/gMvL7SoJn5T20asB7xpPzmn0cm67P9JKZ2uJyhRdKWQBmc6iljBsvNjvjTSjscn83YfkQ==";
+    const string TestSig = "WYHyewuWX8ngbN1wKQQ1Kpky/4LIf9UC7mZi9vjgZQVPny5lOBd48ajQekMDT30d6Ppt7pyqhELtzhbfMAvT5n/yg4vfWh32v5bNqhvmL1hcHhnReCHTATOwAdBQ1pNjzoUa8ajm/KFviN7TVi27ANIkXo/EMYEH7+EnplB9mbZniPunD2WDo51pHfgDseZW+23rpUAY5DV1jYSZs2T4pbhi7RvNdBZC4lafLAlw9LChVPaYehWhI9wDZcAyR6iH9Vuk5yunSygCqmSGAtJIx+6MF28IIFYpTVB4t3bw4XZsn18C/oHPxjJvWn4PGPNZkqikJqn9IRnjR19WpJ9jpg==";
+
+    static void UpdateSignature()
+    {
+        byte[] msg = System.Text.Encoding.ASCII.GetBytes("RDR2 Co-op update check test"), sig = Convert.FromBase64String(TestSig);
+        Check(UpdateCheck.Verify(msg, sig, TestKey), "good signature passes");
+        var changed = (byte[])msg.Clone(); changed[0] ^= 1;
+        Check(!UpdateCheck.Verify(changed, sig, TestKey), "changed file refused");
+        var badSig = (byte[])sig.Clone(); badSig[10] ^= 1;
+        Check(!UpdateCheck.Verify(msg, badSig, TestKey), "changed signature refused");
+        Check(!UpdateCheck.Verify(msg, sig, UpdateCheck.ReleaseKey), "another key's signature refused");
+        Check(!UpdateCheck.Verify(msg, new byte[0], TestKey), "empty signature refused");
+    }
     static void Near(float a, float b, string what, float tol = 0.01f) =>
         Check(Math.Abs(a - b) <= tol, $"{what}: {a} vs {b}");
 

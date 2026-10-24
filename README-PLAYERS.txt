@@ -84,6 +84,9 @@ IN GAME
   is fine: the mission party (F10 twice) brings friends to them.
   F10 twice opens the co-op menu: start or end a mission party (host), host
   your own game again after joining someone else's, and the server browser.
+  When a newer version is out, the mod says so and the menu offers "Update to
+  x": it installs only releases signed by the mod (press Insert to load it).
+  UpdateCheck=No in RDR2Coop.ini turns that off.
   Insert reloads the mod, F10 shows co-op status,
   F7 revives a downed partner, F9 teleports to your partner, F11 (guests) lists the host's enRage nemeses who have a grudge against you.
 

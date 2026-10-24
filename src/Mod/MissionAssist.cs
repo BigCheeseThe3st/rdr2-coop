@@ -179,7 +179,7 @@ namespace RDR2Coop.Mod
                 return true;
             }
             var me = Game.Player.Character.Position;
-            var now = seen.Where(b => !_baseline.Contains(b) && MAP.DOES_BLIP_EXIST(b) && !MAP._IS_BLIP_ATTACHED_TO_ANY_ENTITY(b))
+            var now = seen.Where(b => !_baseline.Contains(b) && !Blips.Mine.Contains(b) && MAP.DOES_BLIP_EXIST(b) && !MAP._IS_BLIP_ATTACHED_TO_ANY_ENTITY(b))
                           .Select(b => MAP.GET_BLIP_COORDS(b))
                           .Where(p => p.X != 0f || p.Y != 0f)
                           .OrderBy(p => p.DistanceTo(me))

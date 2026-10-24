@@ -84,7 +84,8 @@ namespace RDR2Coop.Net
 
     public enum ActionKind : byte { Hogtie = 1 }
 
-    public enum NoticeKind : byte { Text = 0, NemesesRequest = 1, Nemeses = 2, Encounter = 3, EncounterResult = 4, Names = 5 }
+    // Clock: the host's time and weather (older versions ignore kinds they don't know).
+    public enum NoticeKind : byte { Text = 0, NemesesRequest = 1, Nemeses = 2, Encounter = 3, EncounterResult = 4, Names = 5, Clock = 6 }
 
     public struct NoticeMsg
     {

@@ -1,0 +1,16 @@
+// The Discord #bug-reports -> GitHub issues sync (see src/index.js). Secrets, set with
+// "npx wrangler secret put NAME": DISCORD_TOKEN, GITHUB_TOKEN.
+{
+  "name": "rdr2coop-bug-sync",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "REPO": "BigCheeseThe3st/rdr2-coop",
+    "GUILD_ID": "1563512390056943709",
+    "FORUM_ID": "1563553301960855663",
+    "BOT_ID": "1563513356122325052",
+    "TAG_ON_GITHUB": "1563553301960855672",
+    "TAG_FIXED": "1563553301968986261"
+  }
+}
