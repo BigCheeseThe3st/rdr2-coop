@@ -124,7 +124,7 @@ static class NetTests
             Seq = 42, TimeMs = 123456, Flags = StateFlags.Mounted | StateFlags.InCutscene,
             PedModel = 0xD7F1E7F6, Position = new Vec3(-300.5f, 800.25f, 117f), Heading = 271.5f,
             Velocity = new Vec3(3, -1, 0.5f), MountModel = 0x2B5D4F3C,
-            MountPosition = new Vec3(-300.4f, 800.2f, 116f), MountHeading = 270f, Following = 2,
+            MountPosition = new Vec3(-300.4f, 800.2f, 116f), MountHeading = 270f, Following = 2, Weapon = 0x169F59F7,
         };
         var bytes = Protocol.State(s);
         var p = Protocol.Read(bytes, bytes.Length);
@@ -135,13 +135,17 @@ static class NetTests
         Near(r.Position.Y, 800.25f, "position");
         Near(r.MountHeading, 270f, "mount heading");
         Check(r.Mounted && !r.Dead && r.Following == 2, "flag helpers + following");
+        Check(r.Weapon == 0x169F59F7, "weapon in hand");
+        // A state from before 0.7.1 (no weapon on the end) still reads, with empty hands.
+        var old = Protocol.Read(bytes, bytes.Length - 4);
+        Check(old != null && old.State.Seq == 42 && old.State.Weapon == 0, "old state without the weapon");
     }
 
     static void RejectsGarbage()
     {
         Check(Protocol.Read(new byte[] { 1, 2, 3, 4, 5, 6 }, 6) == null, "bad magic");
         var bytes = Protocol.State(At(1, 5));
-        Check(Protocol.Read(bytes, bytes.Length - 3) == null, "truncated state");
+        Check(Protocol.Read(bytes, bytes.Length - 4 - 3) == null, "truncated state");   // into the fields every version sends (the weapon on the end is optional)
         var hello = Protocol.Hello("Alice", false);
         Check(Protocol.Read(hello, hello.Length - 2) == null, "truncated name");
         var bad = (byte[])hello.Clone();

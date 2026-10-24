@@ -35,6 +35,8 @@ namespace RDR2Coop.Mod
             public Appearance Look;
             public bool HasLook;
             public uint AppliedLook;
+            public uint AppliedWeapon;     // the weapon their puppet holds
+            public long WeaponTryMs;
             public Appearance MountLook;   // their own horse's look (saddle, coat...)
             public bool HasMountLook;
             public uint AppliedMountLook;
@@ -477,6 +479,7 @@ namespace RDR2Coop.Mod
                     r.Puppet?.Delete();
                     r.Puppet = Puppet.Spawn(st.PedModel, ENTITY.GET_ENTITY_MODEL(me.Handle), ToGame(st.Position), st.Heading, _link.NameOf(kv.Key));
                     r.AppliedLook = 0;
+                    r.AppliedWeapon = 0;
                     if (r.Puppet == null) continue;   // model still streaming; try next tick
                 }
                 // Their clothes, once we have them (only for the same model).
@@ -486,6 +489,12 @@ namespace RDR2Coop.Mod
                     Looks.Apply(r.Puppet.Handle, r.Look);
                     r.AppliedLook = r.Look.Signature();
                     Log($"{_link.NameOf(kv.Key)}'s look applied ({r.Look.Tags.Count} pieces)");
+                }
+                // The weapon in their hand (George: "add the showing of the weapons").
+                if (r.Last.Weapon != r.AppliedWeapon && now - r.WeaponTryMs > 300)
+                {
+                    r.WeaponTryMs = now;
+                    if (r.Puppet.ShowWeapon(r.Last.Weapon)) r.AppliedWeapon = r.Last.Weapon;
                 }
                 Trace($"puppet {kv.Key}: follow");
                 int vehicle = VehicleFor(r.Last, kv.Key, owner, myId);
@@ -654,7 +663,16 @@ namespace RDR2Coop.Mod
                 s.MountHeading = horse.Heading;
                 s.Velocity = ToNet(horse.Velocity);
             }
+            s.Weapon = WeaponInHand(me.Handle);
             return s;
+        }
+
+        // The weapon in our hand (unarmed, or one in a holster, counts as none).
+        static unsafe uint WeaponInHand(int ped)
+        {
+            uint w = 0;
+            if (!WEAPON.GET_CURRENT_PED_WEAPON(ped, &w, true, 0, false)) return 0;
+            return w == MISC.GET_HASH_KEY("WEAPON_UNARMED") ? 0 : w;
         }
 
         void OnKeyDown(object sender, KeyEventArgs e)

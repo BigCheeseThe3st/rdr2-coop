@@ -123,6 +123,7 @@ namespace RDR2Coop.Net
         public byte Following;    // whose game runs our area; 0 = our own
         public ushort VehicleId;  // vehicle we sit in, in our area owner's id space; 0 = none
         public sbyte Seat;        // -1 = driver
+        public uint Weapon;       // the weapon in hand, 0 = none; sent last, so versions before 0.7.1 skip it
 
         public bool Mounted => (Flags & StateFlags.Mounted) != 0;
         public bool Dead => (Flags & StateFlags.Dead) != 0;
@@ -493,10 +494,13 @@ namespace RDR2Coop.Net
             w.Write(s.Following);
             w.Write(s.VehicleId);
             w.Write(s.Seat);
+            w.Write(s.Weapon);
         }
 
-        static PlayerState ReadState(BinaryReader r) => new PlayerState
+        static PlayerState ReadState(BinaryReader r)
         {
+            var s = new PlayerState
+            {
             Seq = r.ReadUInt32(),
             TimeMs = r.ReadInt32(),
             Flags = (StateFlags)r.ReadByte(),
@@ -510,7 +514,10 @@ namespace RDR2Coop.Net
             Following = r.ReadByte(),
             VehicleId = r.ReadUInt16(),
             Seat = r.ReadSByte(),
-        };
+            };
+            if (r.BaseStream.Length - r.BaseStream.Position >= 4) s.Weapon = r.ReadUInt32();   // absent from versions before 0.7.1
+            return s;
+        }
 
         static void WriteVec(BinaryWriter w, Vec3 v) { w.Write(v.X); w.Write(v.Y); w.Write(v.Z); }
         // Positions from the wire: anything not a real map coordinate makes the packet invalid.

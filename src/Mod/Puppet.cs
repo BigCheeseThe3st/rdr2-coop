@@ -50,6 +50,24 @@ namespace RDR2Coop.Mod
             return new Puppet { PedModel = requested, _ped = ped, _blip = blip };
         }
 
+        // The weapon in their hand (0 or unarmed: empty hands). Given with no ammo:
+        // it's for show, and the stand-in ignores threats anyway (Peds.Spawn).
+        // False while the weapon's model is still loading.
+        public bool ShowWeapon(uint weapon)
+        {
+            uint unarmed = MISC.GET_HASH_KEY("WEAPON_UNARMED");
+            if (weapon == 0 || weapon == unarmed || !WEAPON.IS_WEAPON_VALID(weapon))
+            {
+                WEAPON.SET_CURRENT_PED_WEAPON(_ped, unarmed, true, 0, false, false);
+                return true;
+            }
+            if (!WEAPON._HAS_WEAPON_ASSET_LOADED(weapon)) { WEAPON._REQUEST_WEAPON_ASSET(weapon, 31, false); return false; }
+            if (!WEAPON.HAS_PED_GOT_WEAPON(_ped, weapon, 0, false))
+                WEAPON.GIVE_WEAPON_TO_PED(_ped, weapon, 0, true, false, 0, false, 0.5f, 1f, 0, false, 0f, false);
+            WEAPON.SET_CURRENT_PED_WEAPON(_ped, weapon, true, 0, false, false);
+            return true;
+        }
+
         // On while our game runs the area this player is in: our NPCs' hits on
         // the puppet are caught and sent to them. Off: invincible stand-in.
         public void SetCatchHits(bool on)
