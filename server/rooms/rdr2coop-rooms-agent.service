@@ -1,0 +1,14 @@
+[Unit]
+Description=RDR2 Co-op dedicated rooms: starts and stops rooms for the Discord's #find-a-partner
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/python3 -u %h/rdr2coop-rooms/rooms_agent.py
+Restart=always
+RestartSec=30
+MemoryMax=64M
+
+[Install]
+WantedBy=default.target

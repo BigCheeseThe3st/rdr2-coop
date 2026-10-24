@@ -56,6 +56,12 @@ PLAYING TOGETHER
      in the browser; they still need your password to join. It drops off a
      few minutes after your game closes.
   If the host's game closes, the session ends for everyone until it's back.
+  Nobody can host (the router won't open the port)? Start a free dedicated
+     server from the Discord (see HELP below): in #find-a-partner, open
+     "Dedicated servers (start one here)", press Start a dedicated server and
+     pick a name and a password. Within a minute it's in the co-op menu
+     (F10 twice) as "name (dedicated)". Up to 15 run at once, one per person;
+     it stops after 30 minutes empty, after 12 hours, or when you press Stop.
 
 RUNNING A SEPARATE SERVER (optional: always on, e.g. a Raspberry Pi or VPS)
   1. Unpack the "Server" download anywhere and install Python 3 (python.org;
@@ -92,7 +98,7 @@ IN GAME
 
 ENRAGE (optional, host only)
   The unofficial enRage co-op patch is a separate download: unpack it in the
-  same place, put the official enRage 0.9.5.1 zip there too and run the Linux
+  same place, put the official enRage 0.9.5.2 zip there too and run the Linux
   installer (see README-ENRAGE-PATCH.txt). It can't be installed by hand: it
   has to be applied to your own enRage file, which only setup.py does.
 

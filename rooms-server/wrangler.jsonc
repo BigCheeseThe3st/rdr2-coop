@@ -1,0 +1,14 @@
+// RDR2 Co-op dedicated servers on demand (see src/index.js). Secrets, set with "npx wrangler secret put NAME":
+// DISCORD_TOKEN (the bot), AGENT_SECRET (shared with the Mumble Pi's rooms_agent.py).
+{
+  "name": "rdr2coop-sessions",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "Sessions" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sessions"] }],
+  "vars": {
+    "APP_ID": "1563513356122325052",
+    "DISCORD_PUBLIC_KEY": "b3424f56c7e1f1bf54586a1a31c15ad701d5880359437da102ac15a7d91816ca",
+    "STATUS_THREAD": "1563589015897383077"
+  }
+}

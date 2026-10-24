@@ -223,24 +223,34 @@ class Relay:
         return out
 
 
-def serve(port, password, bind="0.0.0.0", name="RDR2 Co-op server", list_server=None):
+def write_status(path, relay, empty_since, now):
+    """Who's in the room, for whatever runs this relay (the dedicated-server helper stops rooms nobody uses)."""
+    tmp = path + ".tmp"
+    with open(tmp, "w") as f:
+        json.dump({"players": len(relay.players), "names": sorted(p.name[:32] for p in relay.players.values()),
+                   "empty_since": empty_since, "updated": now}, f)
+    os.replace(tmp, path)
+
+
+def serve(port, password, bind="0.0.0.0", name="RDR2 Co-op server", list_server=None, status_file=None):
     relay = Relay(password, log=lambda m: print(time.strftime("%H:%M:%S"), m, flush=True), name=name)
     stop = threading.Event()
     if list_server:   # player counts are read without a lock: a stale count for a minute is fine
         threading.Thread(target=keep_listed, args=(list_server, name, port, relay, stop), daemon=True).start()
     try:
-        run(relay, port, bind)
+        run(relay, port, bind, status_file)
     finally:
         stop.set()
         if list_server:
             announce(list_server, "/v1/remove", {"port": port})
 
 
-def run(relay, port, bind):
+def run(relay, port, bind, status_file=None):
     sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
     sock.bind((bind, port))
     sock.settimeout(1.0)
     print(f"relay on udp/{port}, protocol {VERSION}", flush=True)
+    empty_since, last_status = time.time(), 0.0
     while True:
         try:
             data, addr = sock.recvfrom(2048)
@@ -254,6 +264,18 @@ def run(relay, port, bind):
                 sock.sendto(pkt, to)
             except OSError:
                 pass
+        if status_file:
+            now = time.time()
+            if relay.players:
+                empty_since = None
+            elif empty_since is None:
+                empty_since = now
+            if now - last_status >= 5:
+                last_status = now
+                try:
+                    write_status(status_file, relay, empty_since, now)
+                except OSError:
+                    pass
 
 
 def announce(list_server, path, body):
@@ -290,6 +312,7 @@ def main():
     ap.add_argument("--name", default="RDR2 Co-op server", help="room name in the server browser")
     ap.add_argument("--public", action="store_true", help="list the room in the online server browser")
     ap.add_argument("--list-server", default=DEFAULT_LIST_SERVER, help="online room list URL")
+    ap.add_argument("--status-file", help="write who's in the room to this JSON file every few seconds")
     g = ap.add_mutually_exclusive_group(required=True)
     g.add_argument("--password")
     g.add_argument("--password-file")
@@ -300,7 +323,7 @@ def main():
     if a.public and not a.list_server:
         sys.exit("--public needs --list-server URL (the online room list)")
     signal.signal(signal.SIGTERM, lambda *_: sys.exit(0))   # service stop: still leave the online list
-    serve(a.port, password, a.bind, a.name, a.list_server if a.public else None)
+    serve(a.port, password, a.bind, a.name, a.list_server if a.public else None, a.status_file)
 
 
 if __name__ == "__main__":

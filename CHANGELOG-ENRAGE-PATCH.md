@@ -1,6 +1,12 @@
 # Unofficial enRage co-op patch - changelog
 
-For enRage 0.9.5.1 (Nexus mod 10967). Needs RDR2 Co-op; host only.
+For enRage 0.9.5.2 (Nexus mod 10967). Needs RDR2 Co-op; host only. For enRage 0.9.5.1, use patch 0.4.1.
+
+## 0.4.2 (24 Oct 2026) - for enRage 0.9.5.2; needs RDR2 Co-op 0.4.0 or newer (tested with 0.7.2)
+- Works with enRage 0.9.5.2, the current version on Nexus (0.4.1 needs 0.9.5.1).
+- The same co-op changes as 0.4.1, applied to 0.9.5.2: partners' kills and wounds
+  count as yours, per-player grudges, ambushes on far-away partners, nemesis names
+  and F11 lists for partners.
 
 ## 0.4.1 (23 Oct 2026) - needs RDR2 Co-op 0.4.0 or newer (tested with 0.6.0)
 - No change to the patch itself (the patched enRage is byte-identical to 0.4.0).

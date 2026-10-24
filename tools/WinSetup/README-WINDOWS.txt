@@ -8,7 +8,7 @@ RDR2 Co-op - Windows version (with the installer)
    port, the room password and whether you usually host.
    Windows may warn that the app is from an unknown publisher (it isn't
    signed): click "More info" then "Run anyway". The source is on GitHub.
-   If you usually host and have enRage 0.9.5.1 (Nexus mod 10967), put its
+   If you usually host and have enRage 0.9.5.2 (Nexus mod 10967), put its
    official zip in this folder first (or have it installed in the game): the
    installer offers the unofficial enRage co-op patch (enrage-coop-patch
    folder; see README-ENRAGE-PATCH.txt).

@@ -18,7 +18,7 @@ From [Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases):
   (the mod and server are also on Nexus).
 - Optional, host only: `RDR2-Coop-enRage-Patch-<version>.zip`, the unofficial
   enRage co-op patch (shares the host's enRage world with the party). Unpack it
-  into the same folder, add your own enRage 0.9.5.1 (Nexus mod 10967) and run
+  into the same folder, add your own enRage 0.9.5.2 (Nexus mod 10967) and run
   the installer. Not made or supported by enRage's author.
 
 You also need ScriptHookRDR2 (https://www.dev-c.com/rdr2/scripthookrdr2/) and
@@ -56,6 +56,10 @@ dependencies; Windows, macOS or Linux): `python3 relay.py --password YOUR-PASSWO
 (Windows: `py relay.py ...`; `--name`, `--public` for the browser), and forward UDP
 port 27460 for friends over the internet. See `server/README-SERVER.md` (Windows
 steps, `setup-server.sh` service install, security).
+
+Players who can't host can start a dedicated room from the Discord's #find-a-partner
+(name and password of their choice; it stops after 30 minutes empty). `rooms-server/` is
+the Discord side (a Cloudflare Worker), `server/rooms/` the helper that runs the rooms.
 
 The first player in hosts (PreferHost=Yes takes over when the host leaves); every
 game runs the area around its player and shares it when players are within 150 m

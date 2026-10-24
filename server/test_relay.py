@@ -154,6 +154,17 @@ class RelayTest(unittest.TestCase):
         out = self.r.handle(hello("Alice"), a)
         self.assertEqual(out[0][0][4], R.WELCOME)
 
+    def test_status_file(self):
+        import json, os, tempfile
+        path = os.path.join(tempfile.mkdtemp(), "status.json")
+        R.write_status(path, self.r, 123.0, 456.0)
+        st = json.load(open(path))
+        self.assertEqual((st["players"], st["names"], st["empty_since"], st["updated"]), (0, [], 123.0, 456.0))
+        self.join("Arthur", ("10.0.0.2", 5000))
+        R.write_status(path, self.r, None, 457.0)
+        st = json.load(open(path))
+        self.assertEqual((st["players"], st["names"], st["empty_since"]), (1, ["Arthur"], None))
+
     def test_ids_reused_after_leaving(self):
         a, b = ("1.1.1.1", 1), ("2.2.2.2", 2)
         self.join("A", a); self.join("B", b)
