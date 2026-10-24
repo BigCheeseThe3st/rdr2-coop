@@ -91,6 +91,10 @@ UNINSTALL
   Windows: delete RDR2Coop.dll and RDR2Coop.ini from the game's scripts folder.
   Linux:   python3 setup.py --uninstall (also puts your official enRage back).
 
+HELP
+  Questions and ideas: https://github.com/BigCheeseThe3st/rdr2-coop/discussions
+  Bugs: https://github.com/BigCheeseThe3st/rdr2-coop/issues (attach scripts/RDR2Coop.log)
+
 Credits: ScriptHookRDR2 by Alexander Blade; ScriptHookRDR2DotNet V2 by crosire
 and Halen84. Neither is included; get them from the links above.
 The optional enRage co-op patch is unofficial and needs your own enRage

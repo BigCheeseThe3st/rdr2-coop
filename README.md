@@ -64,5 +64,9 @@ game runs the area around its player and shares it when players are within 150 m
 (API key in ~/.config/rdr2-coop/nexus-api-key; without --go it only shows what it would do). Solo test: start the game as host, then
 `mono build/FakePartner.exe 127.0.0.1 27450 walk|run|ride`. Insert reloads scripts in-game.
 
+## Help, ideas, bugs
+Questions and ideas: [Discussions](https://github.com/BigCheeseThe3st/rdr2-coop/discussions).
+Bugs: [Issues](https://github.com/BigCheeseThe3st/rdr2-coop/issues), with `scripts/RDR2Coop.log` from your game folder.
+
 ## Licence
 MIT (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.
