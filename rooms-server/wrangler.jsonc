@@ -1,0 +1,23 @@
+// RDR2 Co-op dedicated servers on demand (see src/index.js). Secrets, set with "npx wrangler secret put NAME":
+// DISCORD_TOKEN (the bot), AGENT_SECRET (shared with the dedicated-server machine's rooms_agent.py), KOFI_TOKEN (Ko-fi's webhook verification token), OWNER_ID (the owner's Discord user id: Ko-fi reminders, staff checks).
+{
+  "name": "rdr2coop-sessions",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "durable_objects": { "bindings": [{ "name": "SESSIONS", "class_name": "Sessions" }] },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Sessions"] }],
+  "vars": {
+    "APP_ID": "1563513356122325052",
+    "DISCORD_PUBLIC_KEY": "b3424f56c7e1f1bf54586a1a31c15ad701d5880359437da102ac15a7d91816ca",
+    "STATUS_THREAD": "1563589015897383077",
+    "GUILD_ID": "1563512390056943709",
+    "MATCH_CATEGORY": "1563536306766618757",
+    "STAFF_ROLES": "1563520568332918869,1563520566047281203",
+    "ANNOUNCE_CHANNEL": "1563512391235538977",
+    "HELP_CHANNEL": "1563582256365178933",
+    "BUG_CHANNEL": "1564004577286824160",
+    "CHAT_CHANNELS": "1563520609848270849",
+    "HELPERS_CHANNEL": "1563611514676576308",
+    "HELPER_ROLES": "1563611504530432124,1563541476787617925"
+  }
+}

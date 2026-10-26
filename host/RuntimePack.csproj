@@ -1,0 +1,11 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- Nothing is built from this. `dotnet restore RuntimePack.csproj -p:RuntimeVersion=x` downloads the
+       pinned win-x64 runtime pack into the NuGet cache, where host/make-runtime.sh reads it. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <RuntimeVersion Condition="'$(RuntimeVersion)' == ''">9.0.15</RuntimeVersion>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageDownload Include="Microsoft.NETCore.App.Runtime.win-x64" Version="[$(RuntimeVersion)]" />
+  </ItemGroup>
+</Project>

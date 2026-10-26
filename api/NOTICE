@@ -1,0 +1,10 @@
+api/Core and api/Api are a port of ScriptHookRDR2DotNet-V2 by Halen84, Salty, crosire, kagikn and
+contributors (zlib licence, see LICENSE in this folder; https://github.com/Halen84/ScriptHookRDR2DotNet-V2),
+itself derived from crosire's ScriptHookVDotNet. The port targets .NET 9 hosted by the RDR2 Co-op loader:
+the C++/CLI DllMain, the in-game console and the CodeDom script compiler are removed, AppDomain loading is
+replaced by AssemblyLoadContext, and System.Windows.Forms is replaced by a Keys/KeyEventArgs shim. Changes are
+listed in plan/core.md and plan/api.md of the RDR2 Co-op repository.
+
+System.Diagnostics.EventLog.dll and System.Diagnostics.EventLog.Messages.dll (RDR2Coop\, for ScriptHookRDR2DotNet
+scripts such as enRage): from Microsoft's System.Diagnostics.EventLog 9.0.0 package, MIT licence,
+Copyright (c) .NET Foundation and Contributors.

@@ -1,0 +1,21 @@
+// The Discord #bug-reports (private tickets) -> GitHub issues + staff #bug-tracker sync (see src/index.js). Secrets, set with
+// "npx wrangler secret put NAME": DISCORD_TOKEN, GITHUB_TOKEN.
+{
+  "name": "rdr2coop-bug-sync",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "kv_namespaces": [{ "binding": "STATE", "id": "674617b96d174bce846404faff9e6644" }],
+  "triggers": { "crons": ["*/5 * * * *"] },
+  "vars": {
+    "REPO": "BigCheeseThe3st/rdr2-coop",
+    "GUILD_ID": "1563512390056943709",
+    "BUG_CHANNEL": "1564004577286824160",
+    "TRACKER_FORUM": "1564011360650526771",
+    "BOT_ID": "1563513356122325052",
+    "PEST_ROLE": "1563881768850034799",
+    "PEST_COUNT": "5",
+    "SUGGEST_FORUM": "1563520618253516891",
+    "TAG_DONE": "1563520618253516898",
+    "IDEA_ROLE": "1563905625321381960"
+  }
+}

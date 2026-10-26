@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>RDR2Coop.Api</AssemblyName>
+    <RootNamespace>RDR2</RootNamespace>
+    <!-- Bump whenever api/ changes: tools/make-release.sh puts it in latest.txt and the updater compares it with the installed Api. -->
+    <Version>2.2.0.0</Version>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Release DLLs ship: no pdb path (it would carry the build machine's home folder); dist/ never copies pdbs anyway. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <GenerateDocumentationFile>false</GenerateDocumentationFile>
+    <Copyright>Copyright (c) 2020 Salty &amp; Halen84 | Copyright (c) 2015 crosire &amp; kagikn</Copyright>
+    <Description>RDR2 Co-op port of the ScriptHookRDRDotNet V2 scripting API to .NET 9 (zlib licence, see ../LICENSE)</Description>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../Core/RDR2Coop.Core.csproj" />
+  </ItemGroup>
+</Project>

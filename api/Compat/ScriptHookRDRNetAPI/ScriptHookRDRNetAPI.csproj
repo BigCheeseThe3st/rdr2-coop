@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- A type-forwarding stand-in for ScriptHookRDR2DotNet scripts: see ../README.md. -->
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>ScriptHookRDRNetAPI</AssemblyName>
+    <AssemblyVersion>2.2.0.0</AssemblyVersion>
+    <FileVersion>2.2.0.0</FileVersion>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <DebugType>none</DebugType>
+    <Deterministic>true</Deterministic>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../Core/RDR2Coop.Core.csproj" Private="false" />
+    <ProjectReference Include="../../Api/RDR2Coop.Api.csproj" Private="false" />
+  </ItemGroup>
+  <!-- enRage reads the Windows event log at startup after a crash; .NET 9 doesn't include it. The Windows build of the
+       package is copied out by build.sh (runtimes/win/lib), MIT licensed. -->
+  <ItemGroup>
+    <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" GeneratePathProperty="true" />
+  </ItemGroup>
+</Project>

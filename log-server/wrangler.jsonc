@@ -1,0 +1,8 @@
+// Opt-in log uploads from beta builds of the mod (see src/index.js). Secrets: LOG_READ_TOKEN (the author's reads).
+{
+  "name": "rdr2coop-logs",
+  "main": "src/index.js",
+  "compatibility_date": "2026-09-01",
+  "r2_buckets": [{ "binding": "LOGS", "bucket_name": "rdr2coop-logs" }],
+  "vars": { "MAX_BYTES": "1048576", "KEEP_DAYS": "30" }
+}

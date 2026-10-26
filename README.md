@@ -1,16 +1,95 @@
-# RDR2 Co-op
+# RDR2 Co-op (story mode)
 
-Play Red Dead Redemption 2's story mode with up to 3 friends. Unofficial and free.
+Play Red Dead Redemption 2's story mode with up to 3 friends (unofficial mod,
+early access). The host's world, missions and save are shared: ride together,
+fight side by side, join mission parties and revive each other. Built on
+ScriptHookRDR2DotNet V2, so it runs alongside other script mods such as enRage.
+Nexus page: https://www.nexusmods.com/reddeadredemption2/mods/11238
+Source (GPL-3.0): this repository, the released version only (the downloads are under Releases).
 
-This repository holds the downloads. Get them from **[Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases)**: the one marked Latest is the stable version; pre-releases are betas that need testing.
+## Download
+From [Releases](https://github.com/BigCheeseThe3st/rdr2-coop/releases):
+- **Windows:** `RDR2-Coop-Windows-<version>.zip`: the mod, the server, the
+  unofficial enRage co-op patch and `RDR2CoopSetup.exe`, which installs everything
+  (see README-WINDOWS.txt inside).
+- **Linux:** `RDR2-Coop-Full-<version>.zip`: the mod, the server, the Linux
+  installer (`python3 setup.py`) and the unofficial enRage co-op patch.
+- `RDR2-Coop-<version>.zip`, `RDR2-Coop-Server-<version>.zip`,
+  `RDR2-Coop-Linux-Installer-<version>.zip`: the same, as separate pieces
+  (the mod and server are also on Nexus).
+- Optional, host only: `RDR2-Coop-enRage-Patch-<version>.zip`, the unofficial
+  enRage co-op patch (shares the host's enRage world with the party). Unpack it
+  into the same folder, add your own enRage 0.9.5.2 (Nexus mod 10967) and run
+  the installer. Not made or supported by enRage's author.
 
-- **Windows:** `RDR2-Coop-Windows-<version>.zip`. Unpack it and run `RDR2CoopSetup.exe` (unsigned: "More info", then "Run anyway").
-- **Linux (Steam + Proton):** `RDR2-Coop-Full-<version>.zip`, then `python3 setup.py`.
-- **Just the mod:** `RDR2-Coop-<version>.zip`: put `RDR2Coop.dll` and `RDR2Coop.ini` in the game's `scripts` folder. Needs ScriptHookRDR2 and ScriptHookRDR2DotNet V2 (the installers fetch them).
-- **Optional, host only:** the unofficial enRage co-op patch, for your own copy of enRage 0.9.5.2 (Nexus mod 10967). Not made or supported by enRage's author.
+You also need ScriptHookRDR2 (https://www.dev-c.com/rdr2/scripthookrdr2/) and
+ScriptHookRDR2DotNet V2 (https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases);
+the Linux installer fetches both if they're missing.
 
-Help, bug reports and people to play with: **[Discord](https://discord.gg/NAYzjAaQDs)**. Also on **[Nexus Mods](https://www.nexusmods.com/reddeadredemption2/mods/11238)**.
+## Install
+- **Windows:** unpack the Windows zip and double-click `RDR2CoopSetup.exe` (it's
+  unsigned: "More info", then "Run anyway"). Or by hand: "INSTALL" in README-PLAYERS.txt.
+- **Linux (Steam + Proton):** unpack the Full zip and run `python3 setup.py` in
+  it. It finds the game, sets up the script hooks, asks your name, the server,
+  the room password and whether you usually host. Nothing to install in the Proton
+  prefix: the mod brings its own .NET (only the enRage option needs .NET 4.8 there). `python3 setup.py --uninstall`
+  takes it all out again. Then set the Steam launch options to
+  `WINEDLLOVERRIDES="dinput8=n,b" %command%`.
 
-The mod is free and stays free. If you'd like to chip in, every tip at [ko-fi.com/bigcheesethe3st](https://ko-fi.com/bigcheesethe3st) goes to the [Wildlife Conservation Society](https://www.wcs.org), all of it after the card payment fee.
+Load a story save; a subtitle says when you've joined. Settings live in
+`scripts/RDR2Coop.ini`, the logs in `scripts/` (`RDR2Coop.log` the mod, `RDR2Coop.Host.log` the loader,
+`RDR2Coop.Core.log` the script host) in the game folder.
 
-Unofficial; not affiliated with or endorsed by Rockstar Games or Take-Two.
+Everyone plays their own save, and the host's story is the one you share: the player whose
+story you want to play hosts, and the others come along (their own saves don't change). A save
+still in Chapter 1 keeps you in the snowy mountains with the map locked, so to join someone, be
+past Chapter 1 (finish it, or load a save from the start of Chapter 2). A host in Chapter 1 is
+fine: the mission party (F10 twice) brings friends to them.
+
+## Server
+The host's game runs it: `RunServer=Yes` in their RDR2Coop.ini (`src/Net/Relay.cs`,
+with UPnP from `src/Net/Upnp.cs`); friends point `Server=` at the host, or find it with
+the in-game server browser (F10 twice): servers on their network answer a broadcast, and
+hosts with `Public=Yes` appear in the online room list (`list-server/`, a Cloudflare
+Worker; `src/Net/RoomList.cs` is the game's side).
+
+For an always-on room there's the standalone `server/relay.py` (Python 3, no
+dependencies; Windows, macOS or Linux): `python3 relay.py --password YOUR-PASSWORD`
+(Windows: `py relay.py ...`; `--name`, `--public` for the browser), and forward UDP
+port 27460 for friends over the internet. See `server/README-SERVER.md` (Windows
+steps, `setup-server.sh` service install, security).
+
+Players who can't host can start a dedicated room from the Discord's #find-a-partner
+(name and password of their choice; it stops after 30 minutes empty). `rooms-server/` is
+the Discord side (a Cloudflare Worker), `server/rooms/` the helper that runs the rooms.
+
+The first player in hosts (PreferHost=Yes takes over when the host leaves, and gets
+the role back after dropping out, unless the stand-in prefers hosting too); every
+game runs the area around its player and shares it when players are within 150 m
+(the host's game first).
+
+## Build
+`./build.sh` compiles the ScriptHookRDR2DotNet build `dist/shdn/scripts/RDR2Coop.dll`
+with mono's csc against the .NET 4.8 reference assemblies, the .NET 9 build
+`dist/RDR2Coop.asi` (the loader, `host/`) + `dist/RDR2Coop/` (the API port `api/`, the
+mod and the runtime), builds `build/FakePlayer.exe` and runs the tests (no game needed).
+`dist/scripts/` holds only the ini. `tools/make-release.sh` makes the downloads in `release/upload`
+(needs the private enRage build in ~/enrage-private for the patch).
+`tools/publish-nexus.py [coop|server|installer|enrage-patch] --go` uploads them to the Nexus page as new file versions with their changelog
+(API key in ~/.config/rdr2-coop/nexus-api-key; without --go it only shows what it would do). Solo test: start the game as host, then
+`mono build/FakePlayer.exe 127.0.0.1 27460 <password> partner walk|run|ride` (more modes at the top of
+`tools/FakePlayer.cs`). Insert reloads scripts in-game.
+
+## Help, ideas, bugs
+Discord: [discord.gg/NAYzjAaQDs](https://discord.gg/NAYzjAaQDs) for help (we can look at your screen together), people to play with, and news.
+Questions and ideas: the [Discord](https://discord.gg/NAYzjAaQDs) (#help for questions, #bug-reports for bugs).
+Bugs: a private thread in the Discord's #bug-reports (each report is copied here automatically), or [Issues](https://github.com/BigCheeseThe3st/rdr2-coop/issues), with `scripts/RDR2Coop.log` from your game folder (and `RDR2Coop.Host.log` + `RDR2Coop.Core.log` if the mod didn't start).
+
+## Support
+RDR2 Co-op is free and stays free: tips don't buy features or early access. If you'd like to chip in:
+[ko-fi.com/rdr2_coop](https://ko-fi.com/rdr2_coop). Every tip goes to the
+[Wildlife Conservation Society](https://www.wcs.org) (all of it, after the card payment fee); each month's total is posted in the Discord. The mod's Nexus
+Donation Points go there too, apart from 10% to enRage's author.
+
+## Licence
+MIT (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.

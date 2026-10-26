@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net9.0</TargetFramework>
+    <AssemblyName>RDR2Coop.Core</AssemblyName>
+    <RootNamespace>RDR2DN</RootNamespace>
+    <EnableDynamicLoading>true</EnableDynamicLoading>   <!-- a library that emits RDR2Coop.Core.runtimeconfig.json + .deps.json: hostfxr's entry point -->
+    <RollForward>LatestMinor</RollForward>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Release DLLs ship: no pdb path (it would carry the build machine's home folder); dist/ never copies pdbs anyway. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+  </PropertyGroup>
+</Project>

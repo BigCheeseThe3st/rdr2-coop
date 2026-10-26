@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- The co-op mod, built twice from the same files:
+       net48   a ScriptHookRDR2DotNet V2 script (lib/ScriptHookRDRNetAPI.dll from SHDN 2.2.0; build.sh downloads it)
+       net9.0  the mod for our own loader (host/) against our port of the SHDN API (api/)
+       dotnet build src/RDR2Coop.csproj -c Release [-f net9.0 | -f net48]
+       Release builds of the net48 target come from build.sh (mono csc against the 4.8 reference assemblies). -->
+  <PropertyGroup>
+    <TargetFrameworks>net48;net9.0</TargetFrameworks>
+    <AssemblyName>RDR2Coop</AssemblyName>
+    <OutputType>Library</OutputType>
+    <LangVersion>7.3</LangVersion>   <!-- the net48 build (csc 7.3) compiles the same files -->
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <!-- Release DLLs ship: no pdb path (it would carry the build machine's home folder); dist/ never copies pdbs anyway. -->
+    <DebugType Condition="'$(Configuration)' == 'Release'">none</DebugType>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <!-- WebRequest/ServicePointManager/SHA256Managed are "obsolete" on .NET 9 but work; the code stays shared with net48. -->
+    <NoWarn>SYSLIB0014;SYSLIB0021</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <Compile Include="Net/*.cs;Mod/*.cs;../build/BuildInfo.cs" />
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net48'">
+    <PackageReference Include="Microsoft.NETFramework.ReferenceAssemblies" Version="1.0.3" PrivateAssets="all" />
+    <Reference Include="System.Windows.Forms" />
+    <Reference Include="System.Drawing" />
+    <Reference Include="ScriptHookRDRNetAPI"><HintPath>../lib/ScriptHookRDRNetAPI.dll</HintPath><Private>false</Private></Reference>
+  </ItemGroup>
+  <ItemGroup Condition="'$(TargetFramework)' == 'net9.0'">
+    <ProjectReference Include="../api/Core/RDR2Coop.Core.csproj" />
+    <ProjectReference Include="../api/Api/RDR2Coop.Api.csproj" />
+  </ItemGroup>
+  <Target Name="BuildInfo" BeforeTargets="BeforeBuild">
+    <!-- The version from VERSION, baked in for the log and F10 (build.sh writes the same file). -->
+    <ReadLinesFromFile File="../VERSION"><Output TaskParameter="Lines" PropertyName="CoopVersion" /></ReadLinesFromFile>
+    <WriteLinesToFile File="../build/BuildInfo.cs" Overwrite="true" WriteOnlyWhenDifferent="true"
+      Lines="namespace RDR2Coop { static class BuildInfo { public const string Version = &quot;$(CoopVersion.Trim())&quot;%3B } }" />
+  </Target>
+</Project>

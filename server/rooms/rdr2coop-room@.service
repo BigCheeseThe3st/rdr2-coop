@@ -1,0 +1,10 @@
+[Unit]
+Description=RDR2 Co-op dedicated room on UDP %i (started from Discord by rooms_agent.py)
+
+[Service]
+Type=simple
+EnvironmentFile=%h/.config/rdr2coop-rooms/%i.env
+ExecStart=/usr/bin/python3 %h/rdr2coop-rooms/relay.py --port %i --password-file %h/.config/rdr2coop-rooms/%i.pass --name ${ROOM_NAME} --public --status-file %h/.cache/rdr2coop-rooms/%i.json
+Restart=on-failure
+RestartSec=10
+MemoryMax=64M
