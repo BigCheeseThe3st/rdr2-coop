@@ -158,8 +158,17 @@ bool StartManaged()
 void ScriptMain()
 {
     void* fiber = GetCurrentFiber();
-    if (!StartManaged()) Idle("loader idle");
-    Log(".NET runtime up");
+    // .NET starts once per process. Loading a save makes ScriptHookRDR2 run this script from the start again (a new
+    // call, not only a new fiber): hostfxr then answers "already initialised" (0x1), which used to leave co-op off for
+    // the session (26 Oct). The entry points from the first start stay valid: just initialise the managed side again.
+    static bool started = false;
+    if (!started) {
+        if (!StartManaged()) Idle("loader idle");
+        started = true;
+        Log(".NET runtime up");
+    } else {
+        Log("game restarted its scripts (a save loaded?): initialising the managed side again");
+    }
     for (;;) {
         int rc = g_init(g_base.c_str());
         if (rc != 0) { Log("RDR2Coop.Core Init returned %d (its own log says why)", rc); Idle("loader idle"); }

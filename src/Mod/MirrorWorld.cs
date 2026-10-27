@@ -144,7 +144,7 @@ namespace RDR2Coop.Mod
                     int b = 0;
                     unsafe { PED.GET_PED_LAST_DAMAGE_BONE(kv.Value.Ped, &b); }
                     uint how = PED.GET_PED_CAUSE_OF_DEATH(kv.Value.Ped);
-                    link.SendHit(owner, kv.Key, short.MaxValue, b, how);
+                    link.SendHit(owner, kv.Key, Hit.Kill, b, how);
                     CoopScript.Log($"copy {kv.Key} ({kv.Value.Model:X8}) killed in our game by us (cause {how:X8}): told {owner}'s game to kill it");
                     continue;
                 }
@@ -157,7 +157,7 @@ namespace RDR2Coop.Mod
                 int damage = Peds.TakeTrapped(kv.Value.Ped, me, 0, out int bone);
                 if (damage > 0)
                 {
-                    link.SendHit(owner, kv.Key, (short)Math.Min(damage, short.MaxValue), bone, Peds.CurrentWeapon(me));
+                    link.SendHit(owner, kv.Key, (short)Math.Min(damage, Hit.MaxDamage), bone, Peds.CurrentWeapon(me));   // more is dropped as a bad packet
                     if (now - _hitLogMs > 1000) { _hitLogMs = now; CoopScript.Log($"hit sent to {owner}'s game: copy {kv.Key}, damage {damage}"); }
                 }
             }

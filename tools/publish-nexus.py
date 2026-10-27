@@ -26,6 +26,7 @@ import sys
 import time
 import urllib.error
 import urllib.request
+import zipfile
 from pathlib import Path
 
 API = "https://api.nexusmods.com/v3"
@@ -101,6 +102,16 @@ def file_id(product):
     return ids.get(product) or PRODUCTS[product]["file_id"]
 
 
+def enrage_for(zip_path):
+    """(enRage version, patch version) from the zip's enrage-coop-patch/patch.txt, or None."""
+    with zipfile.ZipFile(zip_path) as z:
+        for n in z.namelist():
+            if n.endswith("enrage-coop-patch/patch.txt"):
+                info = dict(l.split("=", 1) for l in z.read(n).decode().split() if "=" in l)
+                return info.get("enrage_version"), info.get("patch_version")
+    return None
+
+
 def publish(product, go):
     p = PRODUCTS[product]
     fid = file_id(product)
@@ -109,6 +120,11 @@ def publish(product, go):
     if not zip_path.is_file():
         sys.exit(f"{zip_path} isn't built: run tools/make-release.sh first")
     notes = changelog_entry(p["changelog"], version)
+    name = p["name"]
+    enrage = enrage_for(zip_path)   # the enRage version each download works with, in its Files-tab name and changelog
+    if enrage:
+        name = f"{p['name']} (compatible with enRage {enrage[0]})"
+        notes = f"Works with enRage {enrage[0]} (co-op patch {enrage[1]}); other enRage versions run without co-op.\n" + notes
     if product == "enrage-patch":   # Nexus keeps one changelog per version for the whole mod page
         notes = p["name"] + ":\n" + notes
     if fid is None:
@@ -116,7 +132,7 @@ def publish(product, go):
         if not go:
             print("(dry run: add --go to publish)")
             return
-        made = call("POST", "/mod-files", {"upload_id": upload(zip_path), "mod_id": MOD_ID, "name": p["name"],
+        made = call("POST", "/mod-files", {"upload_id": upload(zip_path), "mod_id": MOD_ID, "name": name,
                                            "version": version, "file_category": p["category"]})["data"]
         ids = json.loads(IDS_FILE.read_text()) if IDS_FILE.exists() else {}
         ids[product] = str((made.get("file") or {}).get("id") or made["id"])   # made is the first version; its file id is what later versions go under
@@ -129,7 +145,7 @@ def publish(product, go):
         print(f"{product} {version} is already on Nexus: nothing to do")
         return
     latest = versions[0] if versions else None
-    print(f"{product}: {zip_path.name} -> file {fid} as version {version} ({p['category']})"
+    print(f"{product}: {zip_path.name} -> file {fid} '{name}' as version {version} ({p['category']})"
           f"{', replacing ' + latest['version'] if latest else ''}")
     print("changelog:\n  " + notes.replace("\n", "\n  "))
     if not go:
@@ -137,9 +153,11 @@ def publish(product, go):
         return
     upload_id = upload(zip_path)
     call("POST", f"/mod-files/{fid}/versions", {
-        "upload_id": upload_id, "name": p["name"], "version": version, "file_category": p["category"],
+        "upload_id": upload_id, "name": name, "version": version, "file_category": p["category"],
         "update_mod_version": p["mod_version"], "previous_version_id": latest["id"] if latest else None})
     call("POST", f"/mods/{MOD_ID}/changelogs", {"version": version, "changelog": notes})
+    if enrage:   # the Files-tab title is the file's name, kept apart from each version's: say the enRage version there too
+        call("PUT", f"/mod-files/{fid}", {"name": name})
     print(f"published {product} {version}")
 
 

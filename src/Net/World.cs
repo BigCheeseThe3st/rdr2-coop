@@ -346,5 +346,9 @@ namespace RDR2Coop.Net
         public uint Weapon;         // what the shooter had in hand (0 = unknown), for enRage's grudges
 
         public const int HeadBone = 21030;   // SKEL_Head
+        public const short Kill = short.MaxValue;   // we killed our copy outright (fists, a finishing move): the owner's NPC dies too
+        public const int MaxDamage = 1000;          // no gun does more
+        /// <summary>A hit's damage worth applying: a gun's, or the kill marker. Anything else is a bad packet.</summary>
+        public static bool Sane(short damage) => damage >= 1 && (damage <= MaxDamage || damage == Kill);
     }
 }

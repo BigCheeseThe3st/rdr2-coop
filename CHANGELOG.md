@@ -3,6 +3,28 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.6 (27 Oct 2026) - protocol 13
+The 0.9.0 beta becomes the stable version: everything from 0.8.0-beta.1 to
+0.9.0-beta.8.1 below, plus two fixes. Plays with 0.6.3 and later (same protocol).
+- New since 0.7.3, in short: the mod loads itself (no .NET install; RDR2Coop.asi
+  + the RDR2Coop folder), the host's story missions as a mission party (guests'
+  shots count, a black screen with a message during the host's cutscenes, party
+  down and revive), partners' own clothes, their aiming, shots, crouching, what
+  they carry, wet and muddy clothes, ride double, shared waypoints, a party
+  list and names over heads, text chat, pings, emotes, giving money, card and
+  dice tables (poker, blackjack, dominoes, liar's dice), contests (races,
+  hunting, shooting, duels) and a scoreboard, trains, doors and crimes that
+  count for whoever did them, enRage's co-op patch applied in memory (no
+  installer), no double NPCs at camp, and the server list with a search.
+- Keys work after loading a save. With the mod's own loader, loading a save
+  made the game start the mod's scripts again, which the loader took for a
+  second start and left co-op off until the game restarted.
+- NPCs a partner kills outright (fists, a finishing move, a big hit) die in
+  the host's game too. Since 0.9.0-beta.8 the host's game threw that message
+  away as "too much damage to be real", so the person lived on there and, on
+  the partner's screen, dropped, vanished and came back. Hits over 1000 damage
+  now count as 1000 instead of being dropped.
+
 ## 0.9.0-beta.8.1 (beta, 26 Oct 2026) - protocol 13
 - Partners wear their own clothes again. Since 0.7.3 a partner always showed
   in the default outfit: a timer that limits how often clothes are rebuilt

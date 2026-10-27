@@ -76,6 +76,7 @@ static class NetTests
         Run("beta logs: install ids the log store accepts, and new ones that are", LogsInstallIds);
         Run("party down: the game's death only once every partner is down", PartyDownAll);
         Run("copies: a model the game refused is tried again after the wait, logged once a minute", RetryBookWaits);
+        Run("hits: a gun's damage and the kill marker pass the owner's check, nothing else", HitDamageChecked);
         Run("relay: a dropped host who prefers hosting gets the role back on rejoin, not on a first join", RelayPreferHostRejoin);
         Run("tables: our game goes out at the start, every 5 s, and as \"\" once at the end", TableNotices);
         Run("tables: partners' games from known names only, forgotten after 15 s or when they leave", TablePartners);
@@ -2623,6 +2624,13 @@ static class NetTests
         var ch = r.Handle(Protocol.Hello(name, prefer), from);
         var nonce = First(ch, PacketType.Challenge, from).Nonce;
         return First(r.Handle(Protocol.Auth(nonce, "pw"), from), PacketType.Welcome, from);
+    }
+
+    static void HitDamageChecked()
+    {
+        Check(Hit.Sane(1) && Hit.Sane(Hit.MaxDamage), "a gun's damage");
+        Check(Hit.Sane(Hit.Kill), "the kill marker a guest sends when it killed its copy outright (dropped since beta.8)");
+        Check(!Hit.Sane(0) && !Hit.Sane(-5) && !Hit.Sane(Hit.MaxDamage + 1) && !Hit.Sane(Hit.Kill - 1), "anything else is a bad packet");
     }
 
     static void RetryBookWaits()

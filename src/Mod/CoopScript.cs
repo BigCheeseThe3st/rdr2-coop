@@ -782,7 +782,7 @@ namespace RDR2Coop.Mod
         long _hitLogMs;
         void OnHit(byte from, Hit hit)
         {
-            if (hit.Damage < 1 || hit.Damage > 1000) return;   // no gun does more; anything else is a bad packet
+            if (!Hit.Sane(hit.Damage)) return;
             long nowMs = _clock.ElapsedMilliseconds;
             if (nowMs - _hitLogMs > 1000) { _hitLogMs = nowMs; Log($"hit from {_link.NameOf(from)}: entity {hit.EntityId}, damage {hit.Damage} (we run area {_owner}, they follow {(_remotes.TryGetValue(from, out var rr) && rr.HasLast ? rr.Last.Following : -1)})"); }
             if (hit.EntityId != 0)
