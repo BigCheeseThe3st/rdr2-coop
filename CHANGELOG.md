@@ -3,6 +3,14 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.61 (27 Oct 2026) - protocol 13
+- Loading a save no longer crashes the game with the mod's own loader (the
+  main download). A save load gives the mod a fresh start in the game, and
+  0.7.6 started the mod's .NET side again in a way it can't take, so the game
+  closed. The loader now always runs the mod's .NET side in the same place,
+  whatever the game does, so co-op carries on after a save loads. Players on
+  the ScriptHookRDR2DotNet build weren't affected.
+
 ## 0.7.6 (27 Oct 2026) - protocol 13
 The 0.9.0 beta becomes the stable version: everything from 0.8.0-beta.1 to
 0.9.0-beta.8.1 below, plus two fixes. Plays with 0.6.3 and later (same protocol).

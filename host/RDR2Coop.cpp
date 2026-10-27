@@ -153,38 +153,79 @@ bool StartManaged()
     for (;;) scriptWait(1000);
 }
 
-// The script ScriptHookRDR2 runs for us, on the fiber it made for this thread. Same loop as SHDN's
-// DllMain.cpp: a new fiber means the game reloaded its scripts, so the managed side is initialised again.
+// All managed code runs on ONE fiber of ours, made once per process. .NET ties the game's main thread to the stack it
+// first ran on, and ScriptHookRDR2 gives this script a NEW fiber (a new stack) whenever a save loads: entering .NET from
+// that new stack crashed the game (27 Oct, "loading my save crashed the game"), and before that, starting .NET again
+// there failed (0x1, co-op off). Our fiber outlives the game's: each call switches to it and back.
+enum class Call { Start, Init, Tick };
+void* g_managedFiber;
+void* g_backTo;
+Call g_call;
+int g_result;
+
+// Keys come from the game's window procedure, outside any fiber of ours: queued, handed over before the next tick.
+struct KeyEvent { uint32_t key; int down, ctrl, shift, alt; };
+KeyEvent g_keys[64];
+int g_keyCount;
+
+void CALLBACK ManagedFiber(void*)
+{
+    for (;;) {
+        switch (g_call) {
+        case Call::Start: g_result = StartManaged() ? 0 : 1; break;
+        case Call::Init: g_result = g_init(g_base.c_str()); break;
+        case Call::Tick:
+            for (int i = 0; i < g_keyCount; i++) g_key(g_keys[i].key, g_keys[i].down, g_keys[i].ctrl, g_keys[i].shift, g_keys[i].alt);
+            g_keyCount = 0;
+            g_tick();
+            break;
+        }
+        SwitchToFiber(g_backTo);
+    }
+}
+
+int OnManagedFiber(Call c)
+{
+    if (!g_managedFiber) {
+        g_managedFiber = CreateFiberEx(0, 16 * 1024 * 1024, FIBER_FLAG_FLOAT_SWITCH, ManagedFiber, nullptr);   // .NET wants a big stack
+        if (!g_managedFiber) { Log("couldn't make the loader's fiber (error %lu)", GetLastError()); return -1; }
+    }
+    g_call = c;
+    g_backTo = GetCurrentFiber();
+    SwitchToFiber(g_managedFiber);
+    return g_result;
+}
+
+// The script ScriptHookRDR2 runs for us, on the fiber it made (a new one after a save loads: a new call of this).
+// Same loop as SHDN's DllMain.cpp: a new fiber means the game reloaded its scripts, so the managed side is initialised again.
 void ScriptMain()
 {
     void* fiber = GetCurrentFiber();
-    // .NET starts once per process. Loading a save makes ScriptHookRDR2 run this script from the start again (a new
-    // call, not only a new fiber): hostfxr then answers "already initialised" (0x1), which used to leave co-op off for
-    // the session (26 Oct). The entry points from the first start stay valid: just initialise the managed side again.
     static bool started = false;
     if (!started) {
-        if (!StartManaged()) Idle("loader idle");
+        if (OnManagedFiber(Call::Start) != 0) Idle("loader idle");
         started = true;
         Log(".NET runtime up");
     } else {
         Log("game restarted its scripts (a save loaded?): initialising the managed side again");
     }
     for (;;) {
-        int rc = g_init(g_base.c_str());
+        g_keyCount = 0;   // keys from before the (re)start are stale
+        int rc = OnManagedFiber(Call::Init);
         if (rc != 0) { Log("RDR2Coop.Core Init returned %d (its own log says why)", rc); Idle("loader idle"); }
         g_ready = true;
-        while (GetCurrentFiber() == fiber) { g_tick(); scriptWait(0); }
+        while (GetCurrentFiber() == fiber) { OnManagedFiber(Call::Tick); scriptWait(0); }
         g_ready = false;
         fiber = GetCurrentFiber();
         Log("game reloaded its scripts (new fiber): initialising the managed side again");
     }
 }
 
-// ScriptHookRDR2 calls this from the game's window procedure, on the same thread the fibers run on.
+// ScriptHookRDR2 calls this from the game's window procedure, on the main thread but not on our fiber: queued.
 void KeyboardMessage(DWORD key, WORD, BYTE, BOOL, BOOL isWithAlt, BOOL, BOOL isUpNow)
 {
-    if (!g_ready) return;
-    g_key(key, !isUpNow, (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0, isWithAlt != FALSE);
+    if (!g_ready || g_keyCount >= 64) return;
+    g_keys[g_keyCount++] = { (uint32_t)key, !isUpNow, (GetAsyncKeyState(VK_CONTROL) & 0x8000) != 0, (GetAsyncKeyState(VK_SHIFT) & 0x8000) != 0, isWithAlt != FALSE };
 }
 
 } // namespace
