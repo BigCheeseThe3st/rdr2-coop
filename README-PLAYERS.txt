@@ -99,9 +99,15 @@ IN GAME
   press Y to join you there.
   F10 twice opens the co-op menu: the mission party switch (host), host
   your own game again after joining someone else's, and the server browser.
-  When a newer version is out, the mod says so and the menu offers "Update to
-  x": it installs only releases signed by the mod (press Insert to load it).
+  When a newer version is out, the mod says so (it checks at the start and
+  every 30 minutes while you play) and the menu offers "Update to x": it
+  installs only releases signed by the mod (press Insert to load it).
   UpdateCheck=No in RDR2Coop.ini turns that off.
+  Co-op logs (optional): the mod asks once whether to send your co-op logs to
+  the developer, so bugs get found and fixed sooner. Nothing is sent unless
+  you say yes; addresses and folders are removed first. Stable versions send
+  every 30 minutes, betas every 10. F10 twice > Co-op logs (or SendLogs=No in
+  RDR2Coop.ini) switches it off.
   While you fish, play a mini-game (poker, blackjack, dominoes, five finger
   fillet), take a bath, sit in the barber's chair or watch a show, co-op leaves
   your game alone until you're done (no fades or moves, your own world around

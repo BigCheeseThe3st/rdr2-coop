@@ -152,12 +152,14 @@ namespace RDR2DN
 		/// Unloads scripts and destroys an existing script domain.
 		/// </summary>
 		/// <param name="domain">The script domain to unload.</param>
-		public static void Unload(ScriptDomain domain)
+		/// <returns>The unloaded scripts' load context, weakly: <see cref="WaitCollected"/> waits for it to be gone.</returns>
+		public static WeakReference Unload(ScriptDomain domain)
 		{
 			Log.Message(Log.Level.Info, "Unloading script domain ...");
 
 			domain.Abort();
 			domain.Dispose();
+			ClearShared();
 
 			try
 			{
@@ -167,6 +169,38 @@ namespace RDR2DN
 			{
 				Log.Message(Log.Level.Error, "Failed to unload script domain: ", ex.ToString());
 			}
+			if (CurrentDomain == domain) CurrentDomain = null;   // or it keeps the old scripts' context alive
+			return new WeakReference(domain._alc);
+		}
+
+		// AppDomain slots the scripts share (co-op mod and enRage's co-op patch) that hold the unloaded scripts' functions
+		// or say which enRage copy is the live one. AppDomain data outlives the scripts' context: a delegate left there
+		// kept the whole old context (both mods) in memory after Insert, and enRage then counted it as another copy
+		// ("two copies of enRage"). The next scripts set them again.
+		static readonly string[] SharedKeys = { "rdr2coop.nameOf", "rdr2coop.encounterResult", "rdr2coop.nemesesFor", "enRAGE.active" };
+
+		static void ClearShared()
+		{
+			foreach (var key in SharedKeys)
+				try { AppDomain.CurrentDomain.SetData(key, null); } catch (Exception) { }
+		}
+
+		/// <summary>
+		/// Collects until the unloaded scripts are really gone from the process (a collectible context only goes at a
+		/// garbage collection). Without it the next load sees the old assemblies still listed: enRage takes its own last
+		/// copy for a second install and warns "two copies of enRage" after Insert. True when they went.
+		/// </summary>
+		public static bool WaitCollected(WeakReference old, int tries = 10)
+		{
+			for (int i = 0; i < tries && old.IsAlive; i++)
+			{
+				GC.Collect();
+				GC.WaitForPendingFinalizers();
+			}
+			Log.Message(old.IsAlive ? Log.Level.Warning : Log.Level.Debug, old.IsAlive
+				? "The unloaded scripts are still in memory (something holds on to them): enRage may see its old copy"
+				: "The unloaded scripts are gone from memory");
+			return !old.IsAlive;
 		}
 
 

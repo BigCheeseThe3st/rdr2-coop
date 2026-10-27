@@ -3,6 +3,20 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.62 (27 Oct 2026) - protocol 13
+- Co-op logs on the stable version too, if you want: the mod asks once whether
+  to send your co-op logs to the developer, so bugs get found and fixed sooner
+  (Y or N on screen). Nothing is sent unless you say yes; addresses and
+  folders are removed first. Stable versions send every 30 minutes (and when
+  the mod stops or hits an error). F10 twice > Co-op logs switches it on or off.
+- The update notice comes while you play: the mod checks for a new version at
+  the start and every 30 minutes after, so you hear about an update without
+  restarting the game or pressing Insert.
+- Pressing Insert (reload) no longer leaves the old copy of the mod (and
+  enRage) running in the background with the mod's own loader, so enRage stops
+  warning about "other copies of enRage" after a reload. Comes with the enRage
+  co-op patch 0.4.3.
+
 ## 0.7.61 (27 Oct 2026) - protocol 13
 - Loading a save no longer crashes the game with the mod's own loader (the
   main download). A save load gives the mod a fresh start in the game, and

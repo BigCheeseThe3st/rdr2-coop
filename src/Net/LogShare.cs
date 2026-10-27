@@ -1,6 +1,7 @@
-// Sharing logs from beta builds with the author (the author, 25 Oct: "have peoples logs autosend if they use
-// beta versions so we don't have to wait for bugs"). Opt-in: a beta asks once in game ([Testing] SendLogs=
-// empty), the answer is kept in the ini, and only a Yes ever sends anything. Before a log leaves the PC
+// Sharing logs with the author (the author, 25 Oct: "have peoples logs autosend if they use beta versions so we
+// don't have to wait for bugs"; 27 Oct: "have all versions have the option to send logs"). Opt-in: every build
+// asks once in game ([Testing] SendLogs= empty), the answer is kept in the ini, and only a Yes ever sends anything.
+// Betas send every 10 minutes, stable versions every 30. Before a log leaves the PC
 // addresses, server names and user folders are blanked (Scrub); player names stay, they're what a report is
 // matched against. Pure: what to ask, what to send and how it's cleaned; the game side is Mod/LogSender.cs.
 using System;
@@ -12,13 +13,22 @@ namespace RDR2Coop.Net
     public static class LogShare
     {
         public const int MaxBytes = 1_000_000;          // the tail of a log that goes up (the store caps at 1 MB)
-        public const int EveryMs = 10 * 60_000;         // a running session's log goes up this often
+        public const int EveryMs = 10 * 60_000;         // a beta's running session goes up this often
+        public const int StableEveryMs = 30 * 60_000;   // a stable version's
         public const int AskForMs = 90_000;             // how long the question stays on screen
 
         public enum Consent { Unasked, Yes, No }
 
-        /// <summary>Only test and beta builds (a dash in the version) ask or send.</summary>
+        /// <summary>Test and beta builds have a dash in the version.</summary>
         public static bool IsBeta(string version) => (version ?? "").Contains("-");
+
+        public static int EveryFor(string version) => IsBeta(version) ? EveryMs : StableEveryMs;
+
+        /// <summary>What the logs are called on screen: "Beta logs" on a beta, "Co-op logs" on a stable version.</summary>
+        public static string Label(string version) => IsBeta(version) ? "Beta logs" : "Co-op logs";
+
+        public static string QuestionFor(string version) => IsBeta(version) ? Question
+            : "Co-op: send your co-op logs to the developer automatically, to help fix bugs? Y = yes, N = no. Addresses and folders are removed first.";
 
         public static Consent Parse(string setting)
         {
@@ -63,8 +73,8 @@ namespace RDR2Coop.Net
 
         public static string NewInstall() => Guid.NewGuid().ToString("N").Substring(0, 12);
 
-        /// <summary>Whether a session upload is due now (the first one soon after the start, then every EveryMs).</summary>
-        public static bool Due(long now, long lastSentMs, long startedMs) =>
-            lastSentMs < 0 ? now - startedMs > 60_000 : now - lastSentMs > EveryMs;
+        /// <summary>Whether a session upload is due now (the first one soon after the start, then every `every` ms).</summary>
+        public static bool Due(long now, long lastSentMs, long startedMs, int every = EveryMs) =>
+            lastSentMs < 0 ? now - startedMs > 60_000 : now - lastSentMs > every;
     }
 }

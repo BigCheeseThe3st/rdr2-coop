@@ -1,6 +1,7 @@
 // The update notice and one-press update (the author, 24 Oct: "notice plus one-press
-// update"). At start a background check reads the newest release's latest.txt from
-// GitHub; when it is newer the player is told once, and the co-op menu (F10 twice)
+// update"). A background check reads the newest release's latest.txt from GitHub at the
+// start and every 30 minutes after (27 Oct: "notify about updates without restarting
+// the game or pressing Insert"); when it names a newer version the player is told once, and the co-op menu (F10 twice)
 // offers "Update to x". Updating downloads that release's RDR2Coop.dll and its
 // signature, checks the signature (UpdateCheck.Verify: only the release key passes)
 // and swaps the file: ScriptHookRDR2DotNet runs a copy of it, so the file isn't
@@ -29,6 +30,10 @@ namespace RDR2Coop.Mod
         const string Asset = "RDR2Coop.net9.dll";   // the build for our own .NET 9 loader; installed as RDR2Coop\RDR2Coop.dll
 #endif
         const int MaxBytes = 20 << 20;   // the mod is well under 1 MB; anything this big isn't it
+        public const int CheckEveryMs = 30 * 60_000;
+        bool _quiet;   // "x is the newest" is logged on the first check only
+        readonly ManualResetEvent _stop = new ManualResetEvent(false);   // the mod stops: the check loop ends (a sleeping thread kept the old copy in memory after Insert)
+        string _zipSaid;   // a zip-only release: said once
         readonly string _dll;
         volatile string _available, _note;
         volatile bool _busy, _done;
@@ -37,8 +42,11 @@ namespace RDR2Coop.Mod
         {
             _dll = dllPath;
             try { File.Delete(_dll + ".new"); } catch (Exception) { }   // left by an update that stopped half way
-            if (check) new Thread(Check) { IsBackground = true, Name = "RDR2Coop.UpdateCheck" }.Start();
+            if (check) new Thread(CheckLoop) { IsBackground = true, Name = "RDR2Coop.UpdateCheck" }.Start();
         }
+
+        /// <summary>The mod stops: no more checks.</summary>
+        public void Stop() => _stop.Set();
 
         // The newer version on offer, or null (none, or already installed).
         public string Available => _done ? null : _available;
@@ -51,11 +59,21 @@ namespace RDR2Coop.Mod
         // A line for the screen, once.
         public string TakeNote() { var n = _note; _note = null; return n; }
 
+        void CheckLoop()
+        {
+            for (;;)
+            {
+                Check();
+                _quiet = true;
+                if (_done || _stop.WaitOne(CheckEveryMs)) return;   // updated (the next start checks again), or the mod stopped
+            }
+        }
+
         void Check()
         {
             string v = Offered("/latest/download/latest.txt");
             if (v == null && BuildInfo.Version.Contains("-")) v = Offered("/download/beta-channel/latest.txt");
-            if (v == null) return;
+            if (v == null || v == _available || _busy) return;   // nothing new since the last check (already said)
             _available = v;
             _note = $"Co-op {v} is out (you have {BuildInfo.Version}): F10 twice > Update";
             CoopScript.Log($"update check: {v} is out; this is {BuildInfo.Version}");
@@ -68,8 +86,10 @@ namespace RDR2Coop.Mod
             {
                 string text = Encoding.UTF8.GetString(Get(Releases + path));
                 if (!UpdateCheck.Parse(text, out string v, out _, out _)) { CoopScript.Log($"update check: {path} not understood"); return null; }
-                if (!UpdateCheck.Newer(v, BuildInfo.Version)) { CoopScript.Log($"update check: {v} is the newest ({path}); this is {BuildInfo.Version}"); return null; }
+                if (!UpdateCheck.Newer(v, BuildInfo.Version)) { if (!_quiet) CoopScript.Log($"update check: {v} is the newest ({path}); this is {BuildInfo.Version}"); return null; }
                 if (!NeedsZip(text)) return v;
+                if (_zipSaid == v) return null;
+                _zipSaid = v;
                 _note = $"Co-op {v} is out: it needs the new download (zip) from {Releases}";
                 CoopScript.Log($"update check: {v} needs a newer RDR2Coop.Api than the installed one: download the zip");
             }

@@ -148,8 +148,9 @@ namespace RDR2Coop.Core
 		{
 			if (domain != null)
 			{
-				ScriptDomain.Unload(domain);
+				var old = ScriptDomain.Unload(domain);
 				domain = null;
+				ScriptDomain.WaitCollected(old);
 			}
 
 			domain = ScriptDomain.Load(gameDir);

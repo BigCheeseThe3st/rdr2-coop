@@ -1,4 +1,4 @@
-// The game side of sharing beta logs with the author (rules and scrubbing: Net/LogShare.cs). A beta asks
+// The game side of sharing logs with the author (rules and scrubbing: Net/LogShare.cs). Every build asks
 // once ([Testing] SendLogs= empty): the question stays on screen for a while, Y or N is written to the ini.
 // With a Yes, the tail of scripts\RDR2Coop.log (and the loader's and host's logs when they exist) goes to
 // the log store a minute after the start, every 10 minutes, when the tick throws, and when the mod stops
@@ -30,8 +30,7 @@ namespace RDR2Coop.Mod
         public bool Asking => _askedAt >= 0;
 
         // The co-op menu row (betas only): the same switch as the question, for later.
-        public string MenuLabel => !LogShare.IsBeta(_version) ? null
-            : _consent == LogShare.Consent.Yes ? "Beta logs: sending to the developer (switch off)" : "Beta logs: not sent (switch on)";
+        public string MenuLabel => LogShare.Label(_version) + (_consent == LogShare.Consent.Yes ? ": sending to the developer (switch off)" : ": not sent (switch on)");
         public void Toggle() => Answer(_consent == LogShare.Consent.Yes ? LogShare.Consent.No : LogShare.Consent.Yes);
 
         readonly Func<long> _clockMs;
@@ -44,7 +43,6 @@ namespace RDR2Coop.Mod
             _name = name; _version = version; _startedMs = now;
             _consent = LogShare.Parse(ini.Get("Testing", "SendLogs", ""));
             _install = ini.Get("Testing", "LogsInstall", "").Trim();
-            if (!LogShare.IsBeta(version)) { CoopScript.Log("beta logs: not a beta build, nothing is asked or sent"); return; }
             if (_consent == LogShare.Consent.Unasked) { _askedAt = now; CoopScript.Log("beta logs: asking for consent (Y/N on screen)"); }
             else CoopScript.Log($"beta logs: consent {_consent} from the settings file");
             if (_consent == LogShare.Consent.Yes && !LogShare.ValidInstall(_install))
@@ -59,12 +57,12 @@ namespace RDR2Coop.Mod
         /// <summary>For the F10 status line: whether the logs actually go out (null on a stable build).</summary>
         public string Status(long now)
         {
-            if (!LogShare.IsBeta(_version)) return null;
-            if (_consent != LogShare.Consent.Yes) return "beta logs: off (F10 twice to switch on)";
+            string what = LogShare.Label(_version).ToLowerInvariant();
+            if (_consent != LogShare.Consent.Yes) return what + ": off (F10 twice to switch on)";
             string r = _lastResult;
-            return r == null ? "beta logs: on, first send soon"
-                 : r.Length == 0 ? $"beta logs: on, last sent {Math.Max(0, (now - _lastResultMs) / 60000)} min ago"
-                 : $"beta logs: on, but sending failed: {r}";
+            return r == null ? what + ": on, first send soon"
+                 : r.Length == 0 ? $"{what}: on, last sent {Math.Max(0, (now - _lastResultMs) / 60000)} min ago"
+                 : $"{what}: on, but sending failed: {r}";
         }
 
         // Y or N while the question is up. True when the key was ours.
@@ -92,10 +90,10 @@ namespace RDR2Coop.Mod
             if (Asking)
             {
                 if (now - _askedAt > LogShare.AskForMs) { _askedAt = -1; CoopScript.Log("beta logs: no answer, asking again next time"); return; }
-                if (now - _lastSay > 3000) { _lastSay = now; CoopScript.Say("Co-op " + LogShare.Question); }   // other subtitles replace it
+                if (now - _lastSay > 3000) { _lastSay = now; CoopScript.Say(LogShare.IsBeta(_version) ? "Co-op " + LogShare.Question : LogShare.QuestionFor(_version)); }   // other subtitles replace it
                 return;
             }
-            if (_consent == LogShare.Consent.Yes && LogShare.Due(now, _lastSentMs, _startedMs)) { _lastSentMs = now; Send("session"); }
+            if (_consent == LogShare.Consent.Yes && LogShare.Due(now, _lastSentMs, _startedMs, LogShare.EveryFor(_version))) { _lastSentMs = now; Send("session"); }
         }
 
         /// <summary>The tick threw: the log goes up now (once a minute at most).</summary>

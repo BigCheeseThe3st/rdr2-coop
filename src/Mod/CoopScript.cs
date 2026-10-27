@@ -990,6 +990,7 @@ namespace RDR2Coop.Mod
             if (_down != null && _down.IsDown) _down.GetUp(null, "co-op stopped");
             _link?.Dispose();
             _builtIn?.Dispose();
+            _updater?.Stop();
             AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);
             AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
         }

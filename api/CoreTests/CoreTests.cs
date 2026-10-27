@@ -43,6 +43,7 @@ namespace CoreTests
 			Run("the real enRage co-op patch rebuilds the patched enRage (ENRAGE_OFFICIAL + ENRAGE_PATCH_DIR, else skipped)", EnrageReal);
 			Run("PushLongString splits at 99 UTF-8 bytes", PushLongString);
 			Run("Unload aborts the scripts and the domain can be recreated", Unload);
+			Run("after Unload the old scripts really go (Insert: enRage mustn't see its last copy)", Collected);
 			Run("a thread that swallowed its abort cannot join the new domain's handshake", StaleThread);
 			Run("a swallowed abort still ends the script thread", SwallowedAbort);
 
@@ -337,6 +338,26 @@ namespace CoreTests
 			d2.Start(); // the RDR2Coop folder holds only notadll.dll from the References test: logged, nothing loads
 			Check(d2.RunningScripts.Length == 0, "Start loaded something from an empty folder");
 			ScriptDomain.Unload(d2);
+		}
+
+		[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
+		static WeakReference LoadAndUnload()
+		{
+			var d = NewDomain();
+			d.Start();
+			d.DoTick();
+			return ScriptDomain.Unload(d);
+		}
+
+		static void Collected()
+		{
+			Check(ScriptDomain.WaitCollected(LoadAndUnload()), "the unloaded domain's load context is still alive: Insert would leave the old scripts listed");
+			Check(ScriptDomain.CurrentDomain == null, "Unload leaves no current domain behind");
+			AppDomain.CurrentDomain.SetData("rdr2coop.nameOf", new Func<int, string>(h => "x"));   // a script's function left in a shared slot
+			AppDomain.CurrentDomain.SetData("enRAGE.active", "|old|");
+			LoadAndUnload();
+			Check(AppDomain.CurrentDomain.GetData("rdr2coop.nameOf") == null && AppDomain.CurrentDomain.GetData("enRAGE.active") == null,
+				  "Unload clears the shared slots (a delegate there kept the old scripts alive; enRage counted the old copy)");
 		}
 	}
 }

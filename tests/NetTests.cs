@@ -1835,7 +1835,9 @@ static class NetTests
 
     static void BetaLogs()
     {
-        Check(LogShare.IsBeta("0.9.0-beta.6") && LogShare.IsBeta("0.7.4-test") && !LogShare.IsBeta("0.7.3"), "betas and test builds only");
+        Check(LogShare.IsBeta("0.9.0-beta.6") && LogShare.IsBeta("0.7.4-test") && !LogShare.IsBeta("0.7.3"), "betas and test builds have a dash");
+        Check(LogShare.EveryFor("0.9.0-beta.8.4") == LogShare.EveryMs && LogShare.EveryFor("0.7.62") == LogShare.StableEveryMs, "betas send every 10 minutes, stable every 30");
+        Check(LogShare.Label("0.7.62") == "Co-op logs" && LogShare.Label("0.9.0-beta.8.4") == "Beta logs" && LogShare.QuestionFor("0.7.62").Contains("Y = yes"), "stable asks too, in its own words");
         Check(LogShare.Parse("Yes") == LogShare.Consent.Yes && LogShare.Parse(" no") == LogShare.Consent.No && LogShare.Parse("") == LogShare.Consent.Unasked && LogShare.Parse("maybe") == LogShare.Consent.Unasked, "consent words");
         string s = LogShare.Scrub("joined example.ddns.net:27460 as player 2\nserver: Lykos joined as guest (id 2) from 100.64.0.7\nsettings E:\\SteamLibrary\\x\\RDR2Coop.ini\nsettings C:\\Users\\Dave Smith\\x\nCo-op: calling 188.64.35.234:27461\n/home/dave/.steam\nfe80::1ff:fe23:4567:890a x");
         Check(!s.Contains("example.ddns") && s.Contains("joined [server]:27460"), "server names blanked: " + s);
@@ -1848,6 +1850,7 @@ static class NetTests
         Check(LogShare.Tail("short") == "short", "a short log is whole");
         Check(!LogShare.Due(30_000, -1, 0) && LogShare.Due(61_000, -1, 0), "first upload a minute after the start");
         Check(!LogShare.Due(500_000, 100_000, 0) && LogShare.Due(100_000 + LogShare.EveryMs + 1, 100_000, 0), "then every 10 minutes");
+        Check(!LogShare.Due(100_000 + LogShare.EveryMs + 1, 100_000, 0, LogShare.StableEveryMs) && LogShare.Due(100_000 + LogShare.StableEveryMs + 1, 100_000, 0, LogShare.StableEveryMs), "stable: every 30 minutes");
     }
 
     static void IniSet()
