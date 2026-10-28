@@ -3,6 +3,19 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.63 (28 Oct 2026) - protocol 13
+- RDR2Coop.ini is clearer about what goes where. It now says up front that you
+  only need to set your Name: in the game, press F10 twice and the co-op menu
+  lists the games to join (or host your own), and fills in the connection
+  settings for you. Server= is explained as the host's address
+  (numbers like 86.12.34.56), not the game's name, and the rest is grouped
+  into connection, hosting and extras. Your existing ini keeps working as it
+  is; the new layout comes with fresh installs (or copy your Name and
+  Password into the new file).
+- A game's name typed into Server= no longer switches co-op off: the mod looks
+  for a game with that name and joins it with your Password, or tells you on
+  screen to pick one in the co-op menu (F10 twice).
+
 ## 0.7.62 (27 Oct 2026) - protocol 13
 - Co-op logs on the stable version too, if you want: the mod asks once whether
   to send your co-op logs to the developer, so bugs get found and fixed sooner

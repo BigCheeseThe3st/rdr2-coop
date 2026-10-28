@@ -97,6 +97,7 @@ static class NetTests
         Run("door notices: round trip, fit one notice, hostile lines dropped", DoorNotices);
         Run("upnp: answers parsed, gateways told apart, only http locations", UpnpReplies);
         Run("browser search: any case, menu rows kept, typed text cleaned", BrowserSearch);
+        Run("room by name (Server= holding a room's name): exact name any case, else the only one containing it", RoomByName);
         Run("stats: counters add, share and parse, bad parts dropped", StatsRoundTrip);
         Run("score: kill and stats notices round trip, odd lines dropped, only the area's owner credits", ScoreRules);
         Run("contests: messages parsed, ids checked, odd text refused", ContestMessages);
@@ -174,6 +175,20 @@ static class NetTests
         Check(tv.location == "http://10.0.0.20:8080/desc.xml" && !tv.gateway, "another device's answer");
         Check(Upnp.ParseReply("HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\nLOCATION: file:///etc/passwd\r\n\r\n").location == null, "only http locations");
         Check(Upnp.ParseReply("garbage").location == null, "garbage");
+    }
+
+    static void RoomByName()
+    {
+        var rooms = new System.Collections.Generic.List<Room>
+        {
+            new Room { Name = "gamers", Address = "1.2.3.4", Port = 27460 },
+            new Room { Name = "Gamers Paradise", Address = "5.6.7.8", Port = 27460 },
+            new Room { Name = "Doggi's game", Address = "9.9.9.9", Port = 27460 },
+            new Room { Name = "gamers", HostHere = true },
+        };
+        Check(RoomList.FindByName(rooms, "GAMERS")?.Address == "1.2.3.4", "exact name, any case, before ones that only contain it");
+        Check(RoomList.FindByName(rooms, "doggi")?.Address == "9.9.9.9", "the only one containing it");
+        Check(RoomList.FindByName(rooms, "game") == null && RoomList.FindByName(rooms, "x") == null && RoomList.FindByName(rooms, "nobody") == null, "several, too short or none: null");
     }
 
     static void BrowserSearch()

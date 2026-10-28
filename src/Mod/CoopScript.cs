@@ -225,7 +225,54 @@ namespace RDR2Coop.Mod
             _logs = new LogSender(iniPath, ini, name, BuildInfo.Version, _clock.ElapsedMilliseconds, () => _clock.ElapsedMilliseconds);
             _preferHost = preferHost;
             _password = password;
+            if (!runServer && !Resolves(server))
+            {
+                // Server= isn't an address (often the room's name, as the browser shows it): stay on, not connected,
+                // so F10 works, and look for a room by that name to join.
+                Log($"Server={server} in RDR2Coop.ini isn't an address this PC can find: looking for a room called that");
+                _status = $"Co-op: no server '{(server.Length > 20 ? server.Substring(0, 20) : server)}'. Looking for a game called that...";
+                Say(_status);
+                string wanted = server;
+                System.Threading.Tasks.Task.Run(() =>
+                {
+                    var rooms = new List<Room>();
+                    try { rooms.AddRange(RoomList.QueryLan(ServerLink.DefaultPort)); } catch (Exception e) { Log("room by name, home network: " + e.Message); }
+                    try { if (_listServer != null) rooms.AddRange(RoomList.FetchOnline(_listServer)); } catch (Exception e) { Log("room by name, online list: " + e.Message); }
+                    _roomByName = RoomList.FindByName(rooms, wanted) ?? new Room { Name = null };
+                    _roomByNameWanted = wanted;
+                });
+                server = "127.0.0.1";
+            }
             Connect(server, port, password);
+        }
+
+        volatile Room _roomByName;   // the room Server= named (Name null: none found), set by the lookup above
+        string _roomByNameWanted, _byNameNote;   // the note: shown 3 times, 6 s apart, once you move after loading (and on the status key)
+        int _byNameNoteLeft;
+        long _byNameNoteMs;
+
+        static bool Resolves(string host)
+        {
+            if (System.Net.IPAddress.TryParse(host, out _)) return true;
+            try { return System.Net.Dns.GetHostAddresses(host).Length > 0; } catch (Exception) { return false; }
+        }
+
+        // The tick side of the lookup: join the room it found, or say how to pick one.
+        void JoinRoomByName()
+        {
+            var room = _roomByName;
+            if (room == null) return;
+            _roomByName = null;
+            if (room.Name == null)
+            {
+                Log($"no room called '{_roomByNameWanted}' found");
+                string shortName = _roomByNameWanted.Length > 20 ? _roomByNameWanted.Substring(0, 20) : _roomByNameWanted;
+                _byNameNote = $"Co-op: no game called '{shortName}'. Press {_statusKey} twice to pick one";   // subtitles cut off long lines
+                _byNameNoteLeft = 3;
+                return;
+            }
+            Log($"Server= named the room '{room.Name}': joining it");
+            SwitchTo(room, _password);
         }
 
         void Connect(string server, int port, string password)
@@ -463,6 +510,7 @@ namespace RDR2Coop.Mod
         {
             if (_link == null) return;
             if (_travelPending) { _travelPending = false; TravelTo(_travelTo, _travelName); }
+            if (_roomByName != null) JoinRoomByName();
             long now = _clock.ElapsedMilliseconds;
             long gap = _lastTickMs == 0 ? 0 : now - _lastTickMs;
             _lastTickMs = now;
@@ -484,6 +532,7 @@ namespace RDR2Coop.Mod
             if (note != null) Say(note);
             var meNow = Game.Player.Character;
             if (meNow != null && meNow.Exists()) { string un = _updater?.TakeNote(); if (un != null) Say(un); }   // not over a loading screen
+            if (_byNameNoteLeft > 0 && meNow != null && meNow.Exists() && now > 15000 && now - _byNameNoteMs > 6000 && (_byNameNoteLeft < 3 || ENTITY.GET_ENTITY_SPEED(meNow.Handle) > 0.5f)) { _byNameNoteMs = now; _byNameNoteLeft--; Say(_byNameNote); }   // the game hides the text while you stand idle after loading: from the first move
             if (PickList.IsOpen) PickList.Tick();
             if (_browser.IsOpen)
             {
@@ -922,7 +971,7 @@ namespace RDR2Coop.Mod
                 string players = string.Join(", ", _link.Roster.Select(p => p.Name + (p.Role == PlayerRole.Host ? " (host)" : "")
                                                                             + _tables.Doing(p.Id, _link.MyId, _clock.ElapsedMilliseconds)));
                 string area = _owner == 0 ? "-" : _owner == _link.MyId ? "your game" : _link.NameOf(_owner) + "'s game";
-                Say($"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
+                Say((_byNameNote != null ? _byNameNote + " | " : "") + $"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
                     (_builtIn != null ? " | " + _builtIn.Status : "") + (_updater?.Available != null ? $" | {_updater.Available} is out: F10 twice > Update" : "") +
                     (_browserKey == Keys.None ? $" | {_statusKey} again: server browser" : "") + (_logs?.Status(_clock.ElapsedMilliseconds) is string ls ? " | " + ls : ""));
             }

@@ -65,6 +65,19 @@ namespace RDR2Coop.Net
             return rooms.Where(r => r.HostHere || r.Party || r.Update || r.Extra >= 0 || (r.Name ?? "").IndexOf(text, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
         }
 
+        // Server= in the ini holding a room's name instead of an address (players type the name they see in the
+        // browser): the room called exactly that, any case, else the only one whose name contains it; null otherwise.
+        public static Room FindByName(IEnumerable<Room> rooms, string name)
+        {
+            name = (name ?? "").Trim();
+            if (name.Length < 2) return null;
+            var real = rooms.Where(r => r != null && !r.HostHere && !r.Party && !r.Update && r.Extra < 0).ToList();
+            var exact = real.FirstOrDefault(r => string.Equals((r.Name ?? "").Trim(), name, StringComparison.OrdinalIgnoreCase));
+            if (exact != null) return exact;
+            var some = real.Where(r => (r.Name ?? "").IndexOf(name, StringComparison.OrdinalIgnoreCase) >= 0).ToList();
+            return some.Count == 1 ? some[0] : null;
+        }
+
         // What was typed into the search: no game formatting codes or control characters, trimmed, capped.
         public static string CleanSearch(string text, int max)
         {
