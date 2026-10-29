@@ -3,6 +3,15 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.7.65 (29 Oct 2026) - protocol 13
+- The stable download now carries the beta's loader (RDR2Coop.asi and its
+  helper files), so "Try the beta" in the co-op menu gives you the whole beta,
+  including guests playing in the host's story and cutscenes for guests,
+  without a second download. Stable itself plays as before. Install this zip
+  once (RDR2Coop.asi and the RDR2Coop folder): the in-game update only swaps
+  the mod file, not the loader.
+- An enRage version the co-op patch doesn't fit is named in the log.
+
 ## 0.7.64 (29 Oct 2026) - protocol 13
 - Try the beta from the co-op menu: F10 twice > "Try the beta 0.9.0-beta.x".
   It downloads the beta's mod file, checks it's signed by the mod, and puts it
