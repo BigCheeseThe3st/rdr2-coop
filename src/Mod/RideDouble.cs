@@ -103,15 +103,13 @@ namespace RDR2Coop.Mod
             {
                 if (now - _onSince < 1000) return;   // still getting on
                 if (!_seated) Screen.DisplaySubtitle($"Co-op: couldn't get on {_withName}'s horse");
-                int on = PED.GET_MOUNT(me);
-                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)") + $" (now on {on}, theirs {_horse} exists {Peds.Exists(_horse)}, their stand-in on it {(puppets.TryGetValue(With, out var sp) && PED.GET_MOUNT(sp.Handle) == _horse)})");
+                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)"));
                 With = 0; _horse = 0; _offAt = 0;
                 return;
             }
             _seated = true;
-            string why = down ? "we're down or busy" : MissionProbe.InMissionScene ? "a mission scene" : !puppets.TryGetValue(With, out var p) ? "their stand-in went"
-                       : p.HorseHandle != _horse ? $"their horse changed ({_horse} -> {p.HorseHandle})" : !Riding.CanCarry(stateOf(With)) ? $"their game says they can't carry (mounted {stateOf(With).Mounted}, flags {stateOf(With).Flags})" : null;
-            if (why != null) { CoopScript.Log($"ride double: getting off {_withName}'s horse: {why}"); Off(me); }   // the next look ends the ride
+            if (down || MissionProbe.InMissionScene || !puppets.TryGetValue(With, out var p) || p.HorseHandle != _horse || !Riding.CanCarry(stateOf(With)))
+                Off(me);   // the next look ends the ride
         }
 
         // A partner's game says they sit behind st.RidingWith: put their stand-in in the seat behind that rider

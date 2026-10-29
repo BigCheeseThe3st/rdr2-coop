@@ -2,7 +2,7 @@
 
 For enRage 0.9.5.2 (Nexus mod 10967). Needs RDR2 Co-op; host only. For enRage 0.9.5.1, use patch 0.4.1.
 
-## 0.4.3 (27 Oct 2026) - for enRage 0.9.5.2; needs RDR2 Co-op 0.9.0-beta.8.4 or newer for the full fix
+## 0.4.3 (27 Oct 2026) - for enRage 0.9.5.2; needs RDR2 Co-op 0.7.62 or 0.9.0-beta.8.4 or newer for the full fix
 - Pressing Insert (reload) no longer leaves the old enRage running in the
   background with the mod's own loader: enRage's file-saving thread now ends
   when enRage stops (anything still being saved is finished first).

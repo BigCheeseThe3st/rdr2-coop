@@ -97,7 +97,6 @@ namespace CoreTests
 			Check(EnragePatch.ForLoad(dll, coop, pd, said.Add) == coop && said[^1].Contains("already"), "a copy the installer patched loads as it is");
 			byte[] other = Encoding.ASCII.GetBytes("enRage 0.9.6");
 			Check(EnragePatch.ForLoad(dll, other, pd, said.Add) == other && said[^1].Contains("0.9.5.2"), "another version: unchanged, and the log names the right one");
-			Check((AppDomain.CurrentDomain.GetData(EnragePatch.NoticeKey) as string)?.Contains("needs enRage 0.9.5.2") == true, "and the on-screen notice says which enRage the patch needs");
 			Check(EnragePatch.ForLoad(Path.Combine(scripts, "Other.dll"), official, pd, said.Add) == official, "only NemesisMod.dll");
 			File.Delete(ini);
 			Check(EnragePatch.NoMenuPause(ini) && File.ReadAllText(ini).Contains("[Menu]"), "no ini yet: one with PauseWorld=False");
@@ -326,6 +325,21 @@ namespace CoreTests
 			ScriptDomain.Unload(d2);
 		}
 
+		static void Unload()
+		{
+			var d = NewDomain();
+			var s = StartScript(d, typeof(ScriptA), (o, e) => { });
+			d.DoTick();
+			ScriptDomain.Unload(d);
+			Check(!s.IsRunning, "script still running after Unload");
+			Check(d.RunningScripts.Length == 0, "RunningScripts not cleared");
+			var d2 = NewDomain();
+			Check(ScriptDomain.CurrentDomain == d2, "CurrentDomain not the new domain");
+			d2.Start(); // the RDR2Coop folder holds only notadll.dll from the References test: logged, nothing loads
+			Check(d2.RunningScripts.Length == 0, "Start loaded something from an empty folder");
+			ScriptDomain.Unload(d2);
+		}
+
 		[System.Runtime.CompilerServices.MethodImpl(System.Runtime.CompilerServices.MethodImplOptions.NoInlining)]
 		static WeakReference LoadAndUnload()
 		{
@@ -344,21 +358,6 @@ namespace CoreTests
 			LoadAndUnload();
 			Check(AppDomain.CurrentDomain.GetData("rdr2coop.nameOf") == null && AppDomain.CurrentDomain.GetData("enRAGE.active") == null,
 				  "Unload clears the shared slots (a delegate there kept the old scripts alive; enRage counted the old copy)");
-		}
-
-		static void Unload()
-		{
-			var d = NewDomain();
-			var s = StartScript(d, typeof(ScriptA), (o, e) => { });
-			d.DoTick();
-			ScriptDomain.Unload(d);
-			Check(!s.IsRunning, "script still running after Unload");
-			Check(d.RunningScripts.Length == 0, "RunningScripts not cleared");
-			var d2 = NewDomain();
-			Check(ScriptDomain.CurrentDomain == d2, "CurrentDomain not the new domain");
-			d2.Start(); // the RDR2Coop folder holds only notadll.dll from the References test: logged, nothing loads
-			Check(d2.RunningScripts.Length == 0, "Start loaded something from an empty folder");
-			ScriptDomain.Unload(d2);
 		}
 	}
 }

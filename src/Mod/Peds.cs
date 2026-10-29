@@ -109,27 +109,6 @@ namespace RDR2Coop.Mod
             return now;
         }
 
-        // A mounted ped ridden after a networked position by ordering the rider, never the horse, and never moved by
-        // coordinates (that would throw off whoever sits behind): ride double. Returns the new last-task time.
-        public static long SteerRider(int rider, Vec3 position, Vec3 velocity, float heading, long lastTaskMs, ref bool standing, long now)
-        {
-            if (lastTaskMs == 0) standing = false;
-            if (now - lastTaskMs < RetaskEveryMs) return lastTaskMs;
-            float speed = velocity.Length;
-            if (speed < 0.3f && Position(rider).DistanceTo(CoopScript.ToGame(position)) < 1.5f)
-            {
-                if (standing) return lastTaskMs;   // one standing order, then left be
-                TASK.TASK_STAND_STILL(rider, -1);
-                standing = true;
-                return now;
-            }
-            var ahead = CoopScript.ToGame(position + velocity * 0.6f);
-            float blend = speed > 9f ? 3f : speed > 3.5f ? 2f : 1f;
-            TASK.TASK_GO_STRAIGHT_TO_COORD(rider, ahead, blend, -1, heading, 0.5f, 0);
-            standing = false;
-            return now;
-        }
-
         // The vehicle a ped sits in, or 0.
         public static int VehicleOf(int ped) =>
             Exists(ped) && PED.IS_PED_IN_ANY_VEHICLE(ped, false) ? PED.GET_VEHICLE_PED_IS_IN(ped, false) : 0;
@@ -169,7 +148,7 @@ namespace RDR2Coop.Mod
 
         // Damage dealt by a ped since the last check (0 if none). `attacker`
         // restricts it to one ped; `ignore` skips one ped (friendly fire).
-        public static unsafe int TakeTrapped(int ped, int attacker, int ignore, out int bone, ICollection<int> ignoreAlso = null)
+        public static unsafe int TakeTrapped(int ped, int attacker, int ignore, out int bone)
         {
             bone = 0;
             int health = ENTITY.GET_ENTITY_HEALTH(ped);
@@ -179,7 +158,6 @@ namespace RDR2Coop.Mod
                 ? ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, attacker, true, true)
                 : ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ANY_PED(ped);
             if (ignore != 0 && ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, ignore, true, true)) byPed = false;
-            if (byPed && ignoreAlso != null) foreach (int h in ignoreAlso) if (ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, h, true, true)) { byPed = false; break; }   // only once damaged: rare
 
             int b = 0;
             if (PED.GET_PED_LAST_DAMAGE_BONE(ped, &b)) bone = b;

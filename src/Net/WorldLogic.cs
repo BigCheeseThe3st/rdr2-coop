@@ -43,19 +43,16 @@ namespace RDR2Coop.Net
         public int MountHandle;     // 0 = on foot
         public bool Dead;
         public bool Hostile;
-        public bool Key;            // a story mission's own cast or a cutscene part: sent first, out to KeyRadius
     }
 
     public static class EntitySelector
     {
         public const float Radius = 120f;
         public const float DeadRadius = 50f;
-        public const float KeyRadius = 300f;
 
-        // Key NPCs (the mission's cast, cutscene parts) first, then the nearest
-        // to any of the players (the owner and everyone sharing its area),
-        // hostiles before bystanders at equal distance; a rider always brings
-        // its horse along. Returns handles.
+        // Nearest to any of the players first (the owner and everyone sharing
+        // its area), hostiles before bystanders at equal distance; a rider
+        // always brings its horse along. Returns handles.
         public static List<int> Pick(IEnumerable<Candidate> all, IList<Vec3> players, int cap)
         {
             var byHandle = new Dictionary<int, Candidate>();
@@ -69,9 +66,8 @@ namespace RDR2Coop.Net
             }
 
             var ranked = byHandle.Values
-                .Where(c => Dist(c) <= (c.Dead ? DeadRadius : c.Key ? KeyRadius : Radius))
-                .OrderBy(c => !c.Key)
-                .ThenBy(c => Dist(c) - (c.Hostile ? 15f : 0f))
+                .Where(c => Dist(c) <= (c.Dead ? DeadRadius : Radius))
+                .OrderBy(c => Dist(c) - (c.Hostile ? 15f : 0f))
                 .ToList();
 
             var picked = new List<int>();
@@ -112,9 +108,6 @@ namespace RDR2Coop.Net
         }
 
         public void Clear() => _buffer.Clear();
-
-        /// <summary>When the newest snapshot arrived (long.MinValue / 2 before any).</summary>
-        public long NewestMs => _buffer.Count == 0 ? long.MinValue / 2 : _buffer[_buffer.Count - 1].ArrivedMs;
 
         public bool Push(WorldSnapshot w, long arrivedMs)
         {

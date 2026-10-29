@@ -1,7 +1,6 @@
 // Another player as seen in our world: a ped we spawn and steer, plus a horse
 // when they ride. While our game runs the area they are in, it also catches
 // hits from our NPCs so their own character can take them.
-using System.Collections.Generic;
 using RDR2;
 using RDR2.Math;
 using RDR2.Native;
@@ -22,13 +21,6 @@ namespace RDR2Coop.Mod
         int _blip;
         long _lastTaskMs;
         bool _standing, _horseStanding;
-        // Our player sitting behind this stand-in (ride double): the game threw them off within a second or two when
-        // the horse itself was given orders (29 Oct, both ways round). [Testing] RideDoubleSteer picks how the horse
-        // is moved then: "rider" orders the stand-in in the saddle (as the game does with a gang member and a passenger),
-        // "horse" the old way, "none" not at all. RideDoubleGroup=Yes also puts the stand-in in our group meanwhile.
-        public static string CarrySteer = "rider";
-        public static bool CarryGroup;
-        bool _carrying;
         bool _wasMounted;
         bool _catchHits;
         readonly PuppetAim _aim = new PuppetAim();   // their aim and shots (AimShots.cs)
@@ -112,7 +104,7 @@ namespace RDR2Coop.Mod
         // vehicle: the local vehicle (real or copy) they sit in, 0 = none.
         public void Follow(PlayerState s, long now, int vehicle)
         {
-            if (!Exists || Cutscenes.Scripted.Contains(_ped)) return;   // playing the host in a cutscene here
+            if (!Exists) return;
             if (WaitingHorses.TimeUp(_horse)) DeleteHorse();   // their horse waited ten minutes unridden
             _aim.ShowShots(_ped, s);
             if ((s.Flags & StateFlags.Downed) != 0)
@@ -150,10 +142,10 @@ namespace RDR2Coop.Mod
 
         // Damage our NPCs did to the puppet since the last call (our own shots
         // don't count), for that player to take.
-        public int TakeHits(int myPed, out int bone, ICollection<int> ignoreAlso = null)
+        public int TakeHits(int myPed, out int bone)
         {
             bone = 0;
-            return _catchHits && Exists ? Peds.TakeTrapped(_ped, 0, myPed, out bone, ignoreAlso) : 0;
+            return _catchHits && Exists ? Peds.TakeTrapped(_ped, 0, myPed, out bone) : 0;
         }
 
         void FollowMounted(PlayerState s, long now)
@@ -175,21 +167,6 @@ namespace RDR2Coop.Mod
                 PED.SET_PED_ONTO_MOUNT(_ped, _horse, -1, true);
                 _wasMounted = true;
             }
-            int me = PLAYER.PLAYER_PED_ID();
-            bool carrying = PED.IS_PED_ON_MOUNT(me) && PED.GET_MOUNT(me) == _horse;
-            if (carrying != _carrying)
-            {
-                _carrying = carrying;
-                _lastTaskMs = 0;
-                if (CarryGroup)
-                {
-                    if (carrying) PED.SET_PED_AS_GROUP_MEMBER(_ped, PLAYER.GET_PLAYER_GROUP(PLAYER.PLAYER_ID()));
-                    else PED.REMOVE_PED_FROM_GROUP(_ped);
-                }
-                CoopScript.Log($"ride double: our player {(carrying ? "sits behind" : "left")} a partner's stand-in (steer {CarrySteer}{(CarryGroup ? ", in our group" : "")})");
-            }
-            if (carrying && CarrySteer == "none") return;
-            if (carrying && CarrySteer == "rider") { _lastTaskMs = Peds.SteerRider(_ped, s.MountPosition, s.Velocity, s.MountHeading, _lastTaskMs, ref _horseStanding, now); return; }
             _lastTaskMs = Peds.Steer(_horse, s.MountPosition, s.Velocity, s.MountHeading, true, _lastTaskMs, ref _horseStanding, now);
         }
 

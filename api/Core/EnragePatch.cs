@@ -7,7 +7,6 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.IO.Compression;
-using System.Reflection.Metadata;
 using System.Security.Cryptography;
 
 namespace RDR2DN
@@ -45,9 +44,7 @@ namespace RDR2DN
 			}
 			if (sha != baseSha)
 			{
-				string have = VersionOf(dll);
-				log($"enRage: this NemesisMod.dll ({have ?? "unknown version"}) isn't the official enRage {version} the co-op patch {patchVersion} is for: it runs without the co-op link (get enRage {version} from Nexus, or a co-op update for your version)");
-				Notice($"Co-op: enRage {have ?? "(unknown version)"} isn't supported by the co-op patch yet (it needs enRage {version}). enRage runs without co-op and may treat partners as strangers.");
+				log($"enRage: this NemesisMod.dll isn't the official enRage {version} the co-op patch {patchVersion} is for: it runs without the co-op link (get enRage {version} from Nexus, or a co-op update for your version)");
 				return dll;
 			}
 			byte[] patched;
@@ -83,22 +80,6 @@ namespace RDR2DN
 			}
 			File.WriteAllLines(ini, lines);
 			return true;
-		}
-
-		/// <summary>The one line the mod shows on screen once the game is up (the player rarely reads the log).</summary>
-		internal const string NoticeKey = "rdr2coop.enrageNotice";
-		static void Notice(string text) => AppDomain.CurrentDomain.SetData(NoticeKey, text);
-
-		/// <summary>The assembly version from the metadata ("0.9.5.3"), or null.</summary>
-		internal static string VersionOf(byte[] dll)
-		{
-			try
-			{
-				using var pe = new System.Reflection.PortableExecutable.PEReader(new MemoryStream(dll));
-				var v = pe.GetMetadataReader().GetAssemblyDefinition().Version;
-				return v.Revision > 0 ? v.ToString(4) : v.ToString(3);
-			}
-			catch (Exception) { return null; }
 		}
 
 		/// <summary>bsdiff's control/diff/extra blocks, each raw-deflate compressed, behind "RDCOPAT1" and four int64s.</summary>
