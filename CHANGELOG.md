@@ -3,6 +3,21 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.9.0-beta.8.4.1 (beta, 29 Oct 2026) - protocol 13
+- Switch between stable and the beta from the co-op menu: F10 twice > More >
+  "Switch to stable 0.7.64" (on a beta) or "Try the beta" (on stable 0.7.64
+  and later). It downloads that version's mod file, checks it's signed by the
+  mod, and puts it in place; press Insert to load it. Your settings stay. Not
+  offered while you're a guest in the host's story. Some beta features also
+  need the beta's own download (the zip) the first time.
+- Riding double: sitting behind a partner on their horse no longer throws you
+  off after a second or two. Your game used to give their horse orders
+  directly while you sat on it; it now steers their stand-in in the saddle, as
+  the game does with a gang member and a passenger.
+- Guests in the host's story: the camp's horses near a guest are hidden (the
+  host's show instead) rather than removed, which the camp put straight back
+  every second.
+
 ## 0.9.0-beta.8.4 (beta, 29 Oct 2026) - protocol 13
 - Guests play in the host's story: about 8 seconds after a guest joins, the
   guest's game switches to the host's story (camp, missions, progress) with

@@ -44,6 +44,8 @@ namespace RDR2Coop.Mod
             Cutscenes.On = On(ini, "Cutscenes");
             HostWorld.On = On(ini, "HostWorld");
             Bubbles = ini.Get("Gameplay", "Bubbles", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // beta: off unless asked for
+            Puppet.CarrySteer = ini.Get("Testing", "RideDoubleSteer", "rider").Trim().ToLowerInvariant();   // a stand-in's horse with our player behind: rider | horse | none
+            Puppet.CarryGroup = ini.Get("Testing", "RideDoubleGroup", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
             BubbleCrowd.Volumes = ini.Get("Testing", "BubbleVolumes", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // spawn blocks round players instead of whole-map suppression
         }
 

@@ -36,7 +36,10 @@ namespace RDR2Coop.Mod
         string _zipSaid;   // a zip-only release: said once
         readonly string _dll;
         volatile string _available, _note;
+        volatile string _other;   // the other channel's version (stable on a beta, the beta on stable), for the menu's switch
         volatile bool _busy, _done;
+        volatile string _installed;   // what the last download put in place (an update or a switch)
+        static bool IsBeta => BuildInfo.Version.Contains("-");
 
         public Updater(string dllPath, bool check)
         {
@@ -53,8 +56,19 @@ namespace RDR2Coop.Mod
 
         // The co-op menu's row, or null when there's nothing to offer.
         public string MenuLabel => _available == null ? null
-            : _done ? $"Updated to {_available}: press Insert to load it"
+            : _done ? (_installed == _available ? $"Updated to {_available}: press Insert to load it" : null)
             : _busy ? $"Updating to {_available}..." : $"Update to {_available} (Enter)";
+
+        // The More tab's switch between stable and the beta (George, 29 Oct: "easier to switch between stable and beta
+        // from the in game F10 menu instead of having to swap out files manually"). The mod file only, like an update;
+        // settings stay. null when there's nothing to switch to.
+        public string SwitchLabel => _other == null ? null
+            : _done ? (_installed == _other ? $"Switched to {_other}: press Insert to load it" : null)
+            : _busy ? $"Switching to {_other}..." : IsBeta ? $"Switch to stable {_other} (Enter)" : $"Try the beta {_other} (Enter)";
+
+        public string SwitchHelp => IsBeta
+            ? "Goes back to the stable version: downloads it, checks it's signed by the mod, and puts it in place of this beta. Press Insert after. Your settings stay. Everyone in a session needs the same version."
+            : "Tries the newest beta: downloads it, checks it's signed by the mod, and puts it in place. Press Insert after. Your settings stay; the menu offers stable again from the beta. Some beta features also need the beta's own download (the zip).";
 
         // A line for the screen, once.
         public string TakeNote() { var n = _note; _note = null; return n; }
@@ -72,7 +86,8 @@ namespace RDR2Coop.Mod
         void Check()
         {
             string v = Offered("/latest/download/latest.txt");
-            if (v == null && BuildInfo.Version.Contains("-")) v = Offered("/download/beta-channel/latest.txt");
+            if (v == null && IsBeta) v = Offered("/download/beta-channel/latest.txt");
+            _other = Other(IsBeta ? "/latest/download/latest.txt" : "/download/beta-channel/latest.txt");
             if (v == null || v == _available || _busy) return;   // nothing new since the last check (already said)
             _available = v;
             _note = $"Co-op {v} is out (you have {BuildInfo.Version}): F10 twice > Update";
@@ -97,6 +112,19 @@ namespace RDR2Coop.Mod
             return null;
         }
 
+        // The other channel's version when it can be switched to with the mod file alone, else null.
+        string Other(string path)
+        {
+            try
+            {
+                string text = Encoding.UTF8.GetString(Get(Releases + path));
+                if (!UpdateCheck.Parse(text, out string v, out _, out _) || v == BuildInfo.Version || NeedsZip(text)) return null;
+                if (IsBeta == v.Contains("-")) return null;   // the same channel: that's an update, not a switch
+                return v;
+            }
+            catch (Exception e) { CoopScript.Log($"switch check ({path}): " + e.Message); return null; }
+        }
+
         // Whether the release wants a newer RDR2Coop.Api than the one installed (the mod alone can't be swapped in then).
         static bool NeedsZip(string latest)
         {
@@ -108,9 +136,13 @@ namespace RDR2Coop.Mod
         }
 
         // The menu's Update: download, check the signature, swap the file (all off the game's thread).
-        public void Begin()
+        public void Begin() => Install(_available, "update");
+
+        /// <summary>The menu's switch to the other channel.</summary>
+        public void Switch() => Install(_other, "switch");
+
+        void Install(string v, string what)
         {
-            string v = _available;
             if (v == null || _busy || _done) return;
             _busy = true;
             new Thread(() =>
@@ -135,11 +167,12 @@ namespace RDR2Coop.Mod
                     File.WriteAllBytes(_dll + ".new", dll);
                     File.Copy(_dll + ".new", _dll, true);
                     File.Delete(_dll + ".new");
+                    _installed = v;
                     _done = true;
-                    _note = $"Co-op updated to {v}: press Insert to load it (or restart the game)";
-                    CoopScript.Log($"update: installed {v} ({dll.Length} bytes, signature good)");
+                    _note = $"Co-op {(what == "switch" ? "switched" : "updated")} to {v}: press Insert to load it (or restart the game)";
+                    CoopScript.Log($"{what}: installed {v} ({dll.Length} bytes, signature good)");
                 }
-                catch (Exception e) { _note = "Co-op update failed: " + e.Message; CoopScript.Log("update failed: " + e); }
+                catch (Exception e) { _note = $"Co-op {what} failed: " + e.Message; CoopScript.Log($"{what} failed: " + e); }
                 finally { _busy = false; }
             }) { IsBackground = true, Name = "RDR2Coop.Update" }.Start();
         }

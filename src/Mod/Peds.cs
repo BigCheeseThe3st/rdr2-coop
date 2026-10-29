@@ -109,6 +109,27 @@ namespace RDR2Coop.Mod
             return now;
         }
 
+        // A mounted ped ridden after a networked position by ordering the rider, never the horse, and never moved by
+        // coordinates (that would throw off whoever sits behind): ride double. Returns the new last-task time.
+        public static long SteerRider(int rider, Vec3 position, Vec3 velocity, float heading, long lastTaskMs, ref bool standing, long now)
+        {
+            if (lastTaskMs == 0) standing = false;
+            if (now - lastTaskMs < RetaskEveryMs) return lastTaskMs;
+            float speed = velocity.Length;
+            if (speed < 0.3f && Position(rider).DistanceTo(CoopScript.ToGame(position)) < 1.5f)
+            {
+                if (standing) return lastTaskMs;   // one standing order, then left be
+                TASK.TASK_STAND_STILL(rider, -1);
+                standing = true;
+                return now;
+            }
+            var ahead = CoopScript.ToGame(position + velocity * 0.6f);
+            float blend = speed > 9f ? 3f : speed > 3.5f ? 2f : 1f;
+            TASK.TASK_GO_STRAIGHT_TO_COORD(rider, ahead, blend, -1, heading, 0.5f, 0);
+            standing = false;
+            return now;
+        }
+
         // The vehicle a ped sits in, or 0.
         public static int VehicleOf(int ped) =>
             Exists(ped) && PED.IS_PED_IN_ANY_VEHICLE(ped, false) ? PED.GET_VEHICLE_PED_IS_IN(ped, false) : 0;

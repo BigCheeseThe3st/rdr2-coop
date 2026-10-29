@@ -79,7 +79,7 @@ namespace RDR2Coop.Mod
         long _lastClearMs;
         readonly HashSet<int> _hidden = new HashSet<int>();
         readonly HashSet<ushort> _taken = new HashSet<ushort>();   // copy horses we got on: ours now, never copied again
-        readonly HashSet<int> _horseLogged = new HashSet<int>();   // our own script-made people (camp, side quests), hidden while we show the owner's world
+        readonly HashSet<int> _horseLogged = new HashSet<int>();   // breeds already logged by the guest clear   // our own script-made people (camp, side quests), hidden while we show the owner's world
         static uint _neutralGroup, _hostileGroup;   // the joaat of fixed names: the same for every instance; made on first use, owner or follower
         readonly Random _rng = new Random();
         byte _myId;
@@ -731,11 +731,15 @@ namespace RDR2Coop.Mod
                 if (IsCopyGroup(h)) orphans++;   // a copy we lost track of: a mission entity, but ours to delete
                 else
                 {
-                    if (PED._IS_THIS_MODEL_A_HORSE(ENTITY.GET_ENTITY_MODEL(h)))
+                    uint model = ENTITY.GET_ENTITY_MODEL(h);
+                    if (PED._IS_THIS_MODEL_A_HORSE(model))
                     {
                         if (Peds.Position(h).DistanceTo(mePos) < 3f) continue;   // we may be getting on it
-                        if (_horseLogged.Add(h)) CoopScript.Log($"guest clear: horse {h} ({ENTITY.GET_ENTITY_MODEL(h):X8}, mission entity {ENTITY.IS_ENTITY_A_MISSION_ENTITY(h)}, rider {PED._GET_RIDER_OF_MOUNT(h, true)}) " +
-                            $"{(ENTITY.IS_ENTITY_A_MISSION_ENTITY(h) ? "hidden" : "removed")}; ours: saddle {horse?.Handle ?? 0}, active {PLAYER._GET_ACTIVE_HORSE_FOR_PLAYER(PLAYER.PLAYER_ID())}, last {PED._GET_LAST_MOUNT(me.Handle)}");
+                        // Hidden, never removed: a removed camp horse was put straight back by the camp script, once a
+                        // second (guests in the host's story stand in the same camp, 29 Oct); hidden ones come back
+                        // when our game runs the area again. Logged once per breed.
+                        if (Hide(h) && _horseLogged.Add((int)model)) CoopScript.Log($"guest clear: horses of breed {model:X8} hidden while showing the owner's world (ours kept: saddle {horse?.Handle ?? 0}, active {PLAYER._GET_ACTIVE_HORSE_FOR_PLAYER(PLAYER.PLAYER_ID())}, last {PED._GET_LAST_MOUNT(me.Handle)})");
+                        continue;
                     }
                     if (TableGames.CardPlayer(h)) continue;
                     if (PED._GET_VEHICLE_DRAFT_HORSE_IS_ATTACHED_TO(h) != 0) continue;   // goes with its wagon below

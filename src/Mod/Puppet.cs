@@ -22,6 +22,13 @@ namespace RDR2Coop.Mod
         int _blip;
         long _lastTaskMs;
         bool _standing, _horseStanding;
+        // Our player sitting behind this stand-in (ride double): the game threw them off within a second or two when
+        // the horse itself was given orders (29 Oct, both ways round). [Testing] RideDoubleSteer picks how the horse
+        // is moved then: "rider" orders the stand-in in the saddle (as the game does with a gang member and a passenger),
+        // "horse" the old way, "none" not at all. RideDoubleGroup=Yes also puts the stand-in in our group meanwhile.
+        public static string CarrySteer = "rider";
+        public static bool CarryGroup;
+        bool _carrying;
         bool _wasMounted;
         bool _catchHits;
         readonly PuppetAim _aim = new PuppetAim();   // their aim and shots (AimShots.cs)
@@ -168,6 +175,21 @@ namespace RDR2Coop.Mod
                 PED.SET_PED_ONTO_MOUNT(_ped, _horse, -1, true);
                 _wasMounted = true;
             }
+            int me = PLAYER.PLAYER_PED_ID();
+            bool carrying = PED.IS_PED_ON_MOUNT(me) && PED.GET_MOUNT(me) == _horse;
+            if (carrying != _carrying)
+            {
+                _carrying = carrying;
+                _lastTaskMs = 0;
+                if (CarryGroup)
+                {
+                    if (carrying) PED.SET_PED_AS_GROUP_MEMBER(_ped, PLAYER.GET_PLAYER_GROUP(PLAYER.PLAYER_ID()));
+                    else PED.REMOVE_PED_FROM_GROUP(_ped);
+                }
+                CoopScript.Log($"ride double: our player {(carrying ? "sits behind" : "left")} a partner's stand-in (steer {CarrySteer}{(CarryGroup ? ", in our group" : "")})");
+            }
+            if (carrying && CarrySteer == "none") return;
+            if (carrying && CarrySteer == "rider") { _lastTaskMs = Peds.SteerRider(_ped, s.MountPosition, s.Velocity, s.MountHeading, _lastTaskMs, ref _horseStanding, now); return; }
             _lastTaskMs = Peds.Steer(_horse, s.MountPosition, s.Velocity, s.MountHeading, true, _lastTaskMs, ref _horseStanding, now);
         }
 

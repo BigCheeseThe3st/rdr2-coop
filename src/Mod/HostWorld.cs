@@ -54,7 +54,7 @@ namespace RDR2Coop.Mod
 
         public HostWorld(Func<byte, PlayerState?> stateOf) { _stateOf = stateOf; }
 
-        bool InHostStory => _guard != null;
+        public bool InHostStory => _guard != null;
 
         /// <summary>Every frame, connected or not, host or guest.</summary>
         public void Tick(ServerLink link, long now)

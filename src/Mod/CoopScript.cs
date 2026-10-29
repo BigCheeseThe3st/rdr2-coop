@@ -200,6 +200,8 @@ namespace RDR2Coop.Mod
                                          () => _updater?.MenuLabel, () => _updater?.Begin());
             _spectate.Key = _teleportKey; ServerBrowser.Extras.Add(new MenuExtra(() => _spectate.MenuLabel, () => _spectate.MenuAct(), help: () => "Watch a partner through their camera while you're down or dead."));
             ServerBrowser.Extras.Add(new MenuExtra(() => _emotes.MenuLabel(_link), () => _emotes.Open(), help: () => "Wave, tip your hat, point, clap and more. Your partners see it."));
+            // Not while we're in the host's story as a guest: our own story comes back through this version's leave.
+            ServerBrowser.Extras.Add(new MenuExtra(() => _hostWorld?.InHostStory == true ? null : _updater?.SwitchLabel, () => { if (_hostWorld?.InHostStory != true) _updater?.Switch(); }, MenuExtra.More, () => _updater?.SwitchHelp));
             ServerBrowser.Extras.Add(new MenuExtra(() => _logs?.MenuLabel, () => _logs?.Toggle(), MenuExtra.More, () => "Sends your co-op logs to the developer so bugs get found and fixed sooner. Addresses and folders are removed first. Enter switches it on or off."));
             Contests.Register("race", () => new Race(), Races.Setup, Races.View);
             Contests.Register("hunting", () => new Hunting(), Hunts.Setup, Hunts.View);
