@@ -1,6 +1,7 @@
 // Another player as seen in our world: a ped we spawn and steer, plus a horse
 // when they ride. While our game runs the area they are in, it also catches
 // hits from our NPCs so their own character can take them.
+using System.Collections.Generic;
 using RDR2;
 using RDR2.Math;
 using RDR2.Native;
@@ -104,7 +105,7 @@ namespace RDR2Coop.Mod
         // vehicle: the local vehicle (real or copy) they sit in, 0 = none.
         public void Follow(PlayerState s, long now, int vehicle)
         {
-            if (!Exists) return;
+            if (!Exists || Cutscenes.Scripted.Contains(_ped)) return;   // playing the host in a cutscene here
             if (WaitingHorses.TimeUp(_horse)) DeleteHorse();   // their horse waited ten minutes unridden
             _aim.ShowShots(_ped, s);
             if ((s.Flags & StateFlags.Downed) != 0)
@@ -142,10 +143,10 @@ namespace RDR2Coop.Mod
 
         // Damage our NPCs did to the puppet since the last call (our own shots
         // don't count), for that player to take.
-        public int TakeHits(int myPed, out int bone)
+        public int TakeHits(int myPed, out int bone, ICollection<int> ignoreAlso = null)
         {
             bone = 0;
-            return _catchHits && Exists ? Peds.TakeTrapped(_ped, 0, myPed, out bone) : 0;
+            return _catchHits && Exists ? Peds.TakeTrapped(_ped, 0, myPed, out bone, ignoreAlso) : 0;
         }
 
         void FollowMounted(PlayerState s, long now)

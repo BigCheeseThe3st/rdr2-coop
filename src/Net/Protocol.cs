@@ -41,6 +41,8 @@ namespace RDR2Coop.Net
         Swimming = 16,
         Falling = 32,
         Ragdoll = 64,
+        Diving = 128,      // a dive: into water, or the sprinting dive (0.9.0-beta.8.4; older versions ignore it)
+        Evading = 256,     // diving out of the way of a horse, wagon or train
     }
 
     [Flags]
@@ -53,6 +55,7 @@ namespace RDR2Coop.Net
         ScreenFaded = 16, // fading or faded to black (mission transitions)
         Downed = 32,      // knocked down in someone else's area, waiting for a revive
         InMission = 64,   // a story mission runs in this player's game
+        Bubbles = 128,    // [Gameplay] Bubbles on in this game (0.9.0-beta.9): bubble mode runs only when every player has it. The last free bit
         Driving = 8,      // drives a vehicle: MountPosition/MountHeading/Velocity are the vehicle's
     }
 
@@ -104,7 +107,15 @@ namespace RDR2Coop.Net
         Explosion = 7, Door = 8, Law = 9, MissionStep = 10, Train = 11, Chat = 12, Waypoint = 13, Activity = 14,
         // Playing together (0.9.0), one per feature: tables (cards, dominoes, dice), contests (races, duels, shooting,
         // hunting), pings, giving money, the emote menu, the scoreboard, spectating.
-        Table = 15, Contest = 16, Ping = 17, Money = 18, Emote = 19, Score = 20, Spectate = 21 }
+        Table = 15, Contest = 16, Ping = 17, Money = 18, Emote = 19, Score = 20, Spectate = 21,
+        // A guest in a card player's seat at the game's own poker (0.9.0-beta.8.4, src/Net/GamePoker.cs).
+        GamePoker = 22,
+        // Story cutscenes on guests' screens (0.9.0-beta.8.4, src/Net/Cutscene.cs).
+        Cutscene = 23,
+        // The host's world for guests (0.9.0-beta.9, src/Net/WorldShare.cs).
+        WorldShare = 24,
+        // Which companion each sent person is, for one of each where bubbles overlap (0.9.0-beta.9, src/Net/Doubles.cs).
+        EntityKeys = 25 }
 
     public struct NoticeMsg
     {
@@ -154,6 +165,8 @@ namespace RDR2Coop.Net
         public byte Dirt;         // 0 clean .. 255 filthy (blood counts)
         public byte Health;       // 0 .. 255 of full health, for the party list (0 with older versions: unknown)
         public byte RidingWith;   // the player whose horse they sit behind, 0 = none
+        // Sent after RidingWith (0.9.0-beta.9, bubbles); older versions stop before it, theirs read as 0.
+        public byte VehicleOwner; // whose world VehicleId is in (bubbles: every game has its own vehicles), 0 = the area owner's as before
 
         public bool Mounted => (Flags & StateFlags.Mounted) != 0;
         public bool Dead => (Flags & StateFlags.Dead) != 0;
@@ -538,6 +551,7 @@ namespace RDR2Coop.Net
             w.Write(s.Dirt);
             w.Write(s.Health);
             w.Write(s.RidingWith);
+            w.Write(s.VehicleOwner);
         }
 
         static PlayerState ReadState(BinaryReader r)
@@ -571,6 +585,7 @@ namespace RDR2Coop.Net
                 s.Dirt = r.ReadByte();
                 s.Health = r.ReadByte();
                 s.RidingWith = r.ReadByte();
+                if (r.BaseStream.Length - r.BaseStream.Position >= 1) s.VehicleOwner = r.ReadByte();   // absent before 0.9.0-beta.9
             }
             return s;
         }

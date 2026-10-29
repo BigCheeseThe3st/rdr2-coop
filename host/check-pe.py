@@ -48,6 +48,8 @@ if exp_size:
 bad = [x for x in exports if x.startswith("?") or "hostfxr" in x]
 if bad: fail("unexpected exports %s" % bad)
 if "RDR2Coop_worldGetAll" not in exports: fail("RDR2Coop_worldGetAll not exported (the pool guard NativeMemory.cs calls)")
+for need in ("RDR2Coop_scriptThreads", "RDR2Coop_scriptStatics", "RDR2Coop_scriptUse", "RDR2Coop_scriptInfo"):
+    if need not in exports: fail(need + " not exported (ScriptMemory.cs calls it)")
 imports, p = [], rva(dirs[1][0])
 while struct.unpack_from("<I", data, p + 12)[0]:
     imports.append(cstr(rva(struct.unpack_from("<I", data, p + 12)[0]))); p += 20
