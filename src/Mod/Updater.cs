@@ -39,7 +39,13 @@ namespace RDR2Coop.Mod
         volatile string _other;   // the other channel's version (stable on a beta, the beta on stable), for the menu's switch
         volatile bool _busy, _done;
         volatile string _installed;   // what the last download put in place (an update or a switch)
-        static bool IsBeta => BuildInfo.Version.Contains("-");
+        // Three tracks: stable, the beta (0.9.0-beta.x, the big new things) and the fixes beta (x.y.z-rc.n, the next
+        // stable's small fixes early; George, 30 Oct: "a 2nd beta that is just a beta for the small fixes"). An rc
+        // follows the rc channel and goes on to the stable it leads to; it's never moved onto the beta.
+        static bool IsRc => BuildInfo.Version.Contains("-rc");
+        static bool IsBeta => BuildInfo.Version.Contains("-") && !IsRc;
+        const string RcChannel = "/download/rc-channel/latest.txt";
+        volatile string _rc;   // on stable: the fixes beta to try; on an rc: the stable to go back to
 
         public Updater(string dllPath, bool check)
         {
@@ -87,6 +93,8 @@ namespace RDR2Coop.Mod
         {
             string v = Offered("/latest/download/latest.txt");
             if (v == null && IsBeta) v = Offered("/download/beta-channel/latest.txt");
+            if (v == null && IsRc) v = Offered(RcChannel);
+            _rc = IsRc ? Back() : TryRc();   // every track offers the other two (George, 30 Oct: switch to rc versions the same way)
             _other = Other(IsBeta ? "/latest/download/latest.txt" : "/download/beta-channel/latest.txt");
             if (v == null || v == _available || _busy) return;   // nothing new since the last check (already said)
             _available = v;
@@ -124,6 +132,41 @@ namespace RDR2Coop.Mod
             }
             catch (Exception e) { CoopScript.Log($"switch check ({path}): " + e.Message); return null; }
         }
+
+        // On stable: the fixes beta when it leads to a newer stable than this one (an rc of a released stable isn't offered).
+        // On the beta: the fixes beta whenever there is one (its numbers are below the beta's).
+        string TryRc()
+        {
+            try
+            {
+                string text = Encoding.UTF8.GetString(Get(Releases + RcChannel));
+                if (!UpdateCheck.Parse(text, out string v, out _, out _) || !v.Contains("-rc") || NeedsZip(text)) return null;
+                return IsBeta || UpdateCheck.Newer(v.Split('-')[0], BuildInfo.Version) ? v : null;
+            }
+            catch (Exception) { return null; }   // no rc channel yet: nothing to offer
+        }
+
+        // On an rc: the stable to switch back to.
+        string Back()
+        {
+            try
+            {
+                string text = Encoding.UTF8.GetString(Get(Releases + "/latest/download/latest.txt"));
+                return UpdateCheck.Parse(text, out string v, out _, out _) && !v.Contains("-") && !NeedsZip(text) ? v : null;
+            }
+            catch (Exception e) { CoopScript.Log("switch check (stable): " + e.Message); return null; }
+        }
+
+        public string RcLabel => _rc == null ? null
+            : _done ? (_installed == _rc ? $"Switched to {_rc}: press Insert to load it" : null)
+            : _busy ? $"Switching to {_rc}..." : IsRc ? $"Switch to stable {_rc} (Enter)" : IsBeta ? $"Switch to the fixes beta {_rc} (Enter)" : $"Try the fixes beta {_rc} (Enter)";
+
+        public string RcHelp => IsRc
+            ? "Goes back to the stable version, the same way as an update: signed by the mod, your settings stay. Press Insert after."
+            : "The fixes beta: the stable version plus the next version's small fixes, early, without the beta's big new things. It updates itself to the next stable. Signed by the mod, your settings stay. Press Insert after.";
+
+        /// <summary>The menu's switch between stable and the fixes beta.</summary>
+        public void SwitchRc() => Install(_rc, "switch");
 
         // Whether the release wants a newer RDR2Coop.Api than the one installed (the mod alone can't be swapped in then).
         static bool NeedsZip(string latest)

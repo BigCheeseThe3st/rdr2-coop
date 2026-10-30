@@ -35,18 +35,13 @@ namespace RDR2Coop.Mod
         public static bool Doors = true;        // doors and broken things match
         public static bool Trains = true;       // trains players drive, and ones the mod didn't know
         public static bool MiniGames = true;    // co-op stands back while you play poker, blackjack, dominoes...
-        public static bool Bubbles = false;     // every game runs its own world; nearby players' worlds show alongside (src/Net/Bubbles.cs)
 
         public static void Load(Ini ini)
         {
             Markers = On(ini, "Markers"); MissionSteps = On(ini, "MissionSteps"); OwnMissionsAsGuest = ini.Get("Gameplay", "OwnMissionsAsGuest", "No").Trim().Equals("Yes", System.StringComparison.OrdinalIgnoreCase); Explosions = On(ini, "Explosions");
             Law = On(ini, "Law"); Doors = On(ini, "Doors"); Trains = On(ini, "Trains"); MiniGames = On(ini, "MiniGames");
-            Cutscenes.On = On(ini, "Cutscenes");
-            HostWorld.On = On(ini, "HostWorld");
-            Bubbles = ini.Get("Gameplay", "Bubbles", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // beta: off unless asked for
             Puppet.CarrySteer = ini.Get("Testing", "RideDoubleSteer", "rider").Trim().ToLowerInvariant();   // a stand-in's horse with our player behind: rider | horse | none
             Puppet.CarryGroup = ini.Get("Testing", "RideDoubleGroup", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
-            BubbleCrowd.Volumes = ini.Get("Testing", "BubbleVolumes", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // spawn blocks round players instead of whole-map suppression
         }
 
         static bool On(Ini ini, string key) => !ini.Get("Gameplay", key, "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase);

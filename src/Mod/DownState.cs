@@ -3,10 +3,10 @@
 // dead"). Host and guests alike: low health puts us on the ground (safe, unable to act) until a partner revives us
 // (F7 next to us) or no enemy near has fought for 10 s, then we get up (next to the area's owner when we were in
 // their area). If the game kills us anyway (a one-shot kill, a fall, fire), its respawn and death camera are held
-// back and we're brought back where we fell, down. Only when every partner is down too does the game's own death
-// happen (a story mission fails, the game respawns us). The 10 s doesn't count while the area's owner is in a
-// cutscene or loading, and a down player whose controls something else hands back (the mission party showing us
-// after a cutscene) is put down again.
+// back and we're brought back where we fell, down. Only when every partner is down too, or nobody revives us in
+// 3 min, does the game's own death happen (a story mission fails, the game respawns us). The 10 s doesn't count
+// while the area's owner is in a cutscene or loading, and a down player whose controls something else hands back
+// (the mission party showing us after a cutscene) is put down again.
 using RDR2;
 using RDR2.Math;
 using RDR2.Native;
@@ -18,12 +18,13 @@ namespace RDR2Coop.Mod
     {
         const float DownAt = 0.15f;       // of max health
         const int CalmMs = 10000;
+        const int BleedOutMs = 180000;    // down this long without a revive: the game's own death (lawmen never stop; George, 30 Oct)
         const int BringBackForMs = 5000;  // a death we can't undo in this long is let through (never stuck dead)
 
         public bool IsDown { get; private set; }
-        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1;
+        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1, _downSince = -1;
         const int ClearScreenMs = 30000;   // after bringing us back from the game's death: its respawn screen is lifted for this long
-        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged;
+        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged, _bledOut;
 
         static Ped Me => Game.Player.Character;
         static int Health => ENTITY.GET_ENTITY_HEALTH(Me.Handle);
@@ -50,6 +51,7 @@ namespace RDR2Coop.Mod
         {
             if (!IsDown) return;
             IsDown = false;
+            _downSince = -1;
             var me = Me;
             if (at.HasValue)
             {
@@ -70,7 +72,7 @@ namespace RDR2Coop.Mod
         public void Tick(bool following, Vector3? ownerPos, bool combat, bool hold, string ownerName, int partners, bool allOthersDown, long now)
         {
             var me = Me;
-            bool canRevive = partners > 0 && !allOthersDown;
+            bool canRevive = partners > 0 && !allOthersDown && !_bledOut;
             Guard(canRevive);
 
             if (me.IsDead)
@@ -82,7 +84,7 @@ namespace RDR2Coop.Mod
                 return;
             }
             _deadSince = -1;
-            if (_wasDead) { _wasDead = false; _returnAfterDeath = following; _calmSince = -1; }
+            if (_wasDead) { _wasDead = false; _bledOut = false; _returnAfterDeath = following; _calmSince = -1; }
             if (now < _clearScreenUntil) ClearDeathScreen();
 
             if (!IsDown)
@@ -103,14 +105,19 @@ namespace RDR2Coop.Mod
             }
 
             if (partners == 0) { GetUp(null, "your partners have left"); return; }
-            if (allOthersDown)
+            if (_downSince < 0) _downSince = now;
+            bool bleedOut = now - _downSince > BleedOutMs;
+            if (allOthersDown || bleedOut)
             {
-                // Everyone's down: the game's own death (a story mission fails; the game respawns us).
+                // Everyone's down, or nobody came: the game's own death (a story mission fails; the game respawns us).
                 IsDown = false;
+                _downSince = -1;
+                _bledOut = bleedOut;
                 ENTITY.SET_ENTITY_INVINCIBLE(me.Handle, false);
                 PLAYER.SET_PLAYER_CONTROL(Game.Player.Handle, true, 0, false);
                 ENTITY.SET_ENTITY_HEALTH(me.Handle, 0, 0);
-                CoopScript.Log("down: every partner is down too: the game's own death goes ahead");
+                CoopScript.Log(bleedOut ? $"down: no revive in {BleedOutMs / 1000} s: the game's own death goes ahead"
+                                        : "down: every partner is down too: the game's own death goes ahead");
                 return;
             }
 
@@ -136,7 +143,7 @@ namespace RDR2Coop.Mod
             if (now - _lastSay > 4000)
             {
                 _lastSay = now;
-                RDR2.UI.Screen.DisplaySubtitle("Co-op: you're down - a partner can revive you, or you'll get up when the fight's over");
+                RDR2.UI.Screen.DisplaySubtitle($"Co-op: you're down - a partner can revive you, or you'll get up when the fight's over (you bleed out in {(BleedOutMs - (now - _downSince)) / 1000} s)");
             }
         }
 

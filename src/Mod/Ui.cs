@@ -41,108 +41,17 @@ namespace RDR2Coop.Mod
             return p;
         }
 
-        // The game's own menu fonts (its pause menu's titles and body text), for Text's font.
-        public const string TitleFont = "$title", BodyFont = "$body";
-
-        // x, y: 0-1 screen fractions (top left of the text). font: one of the game's fonts, or null for the default.
-        public static void Text(string text, float x, float y, float scale, Color c, string font = null)
+        // x, y: 0-1 screen fractions (top left of the text).
+        public static void Text(string text, float x, float y, float scale, Color c)
         {
             if (string.IsNullOrEmpty(text)) return;
             // ~ < > are the game's text markup: room and player names come from strangers.
             text = new string(text.Where(ch => ch != '~' && ch != '<' && ch != '>').ToArray());
-            if (font != null) text = "<FONT FACE='" + font + "'>" + text + "</FONT>";   // markup we add after the strip
             UIDEBUG._BG_SET_TEXT_SCALE(scale, scale);
             UIDEBUG._BG_SET_TEXT_COLOR(c.R, c.G, c.B, c.A);
             ulong s = Function.Call<ulong>(VarString, 10, new InputArgument((ulong)Pin("LITERAL_STRING").ToInt64()),
                                            new InputArgument((ulong)Pin(text).ToInt64()));
-            // A literal string is drawn as it is; the game reads markup (<FONT>) only in a colour string made from it.
-            if (font != null) s = Function.Call<ulong>(VarString, 42, new InputArgument((ulong)Pin("COLOR_STRING").ToInt64()), 0, new InputArgument(s));
             Function.Call(BgDisplayText, new InputArgument(s), x, y);
-        }
-
-        // Inside Centered(), the 1280x720 grid is a 16:9 area in the middle of a wider screen (an ultrawide one stretched
-        // the co-op menu across all of it); outside it, the grid is the whole screen as before.
-        static float _k = 1f;
-        public static void Centered(bool on) => _k = on ? Math.Min(1f, (16f / 9f) / Aspect()) : 1f;
-        static float X(float x) => 0.5f + (x / 1280f - 0.5f) * _k;
-        static float Wd(float w) => w / 1280f * _k;
-
-        [DllImport("user32.dll")] static extern bool GetClientRect(IntPtr hWnd, out Rect r);
-        [DllImport("user32.dll")] static extern IntPtr GetActiveWindow();
-        [DllImport("user32.dll")] static extern IntPtr GetForegroundWindow();
-        [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr hWnd, out uint pid);
-        struct Rect { public int Left, Top, Right, Bottom; }
-        static float _aspect = 16f / 9f;
-        static int _aspectAt = int.MinValue;
-        static bool _aspectSaid;
-
-        // The game window's width / height (read from Windows every 2 s; the game's own natives report 1280x720).
-        public static float Aspect()
-        {
-            int now = Environment.TickCount;
-            if (_aspectSaid && now - _aspectAt < 2000) return _aspect;   // (_aspectAt starts at int.MinValue: now - it overflows)
-            _aspectAt = now;
-            try
-            {
-                // The game's window: the active one of this (the game's) thread, else the foreground one if it's ours.
-                // Process.MainWindowHandle comes back empty under Proton.
-                var h = GetActiveWindow();
-                if (h == IntPtr.Zero)
-                {
-                    h = GetForegroundWindow();
-                    if (h != IntPtr.Zero && (GetWindowThreadProcessId(h, out uint pid) == 0 || pid != (uint)System.Diagnostics.Process.GetCurrentProcess().Id)) h = IntPtr.Zero;
-                }
-                if (h == IntPtr.Zero) h = System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle;
-                if (h != IntPtr.Zero && GetClientRect(h, out var r) && r.Bottom > r.Top && r.Right > r.Left)
-                {
-                    float a = (r.Right - r.Left) / (float)(r.Bottom - r.Top);
-                    if (Math.Abs(a - _aspect) > 0.01f) CoopScript.Log($"screen: {r.Right - r.Left}x{r.Bottom - r.Top} (the co-op menu keeps to the middle 16:9)");
-                    _aspect = a;
-                }
-            }
-            catch (Exception e) { if (!_aspectSaid) CoopScript.Log("screen: window size unknown: " + e.Message); }
-            if (!_aspectSaid)
-            {
-                _aspectSaid = true;
-                int nx = 0, ny = 0;
-                unsafe { GRAPHICS.GET_SCREEN_RESOLUTION(&nx, &ny); }
-                CoopScript.Log($"screen: active {GetActiveWindow()}, foreground {GetForegroundWindow()}, main {System.Diagnostics.Process.GetCurrentProcess().MainWindowHandle}, game says {nx}x{ny}, aspect used {_aspect:0.00}");
-            }
-            return _aspect;
-        }
-
-        // A filled box on the 1280x720 layout grid: x, y its top left, in pixels.
-        public static void Box(float x, float y, float w, float h, Color c) =>
-            GRAPHICS.DRAW_RECT(X(x + w / 2f), (y + h / 2f) / 720f, Wd(w), h / 720f, c.R, c.G, c.B, c.A, true, false);
-
-        // Text at a pixel position on the same grid.
-        public static void TextAt(string text, float x, float y, float scale, Color c, string font = null) => Text(text, X(x), y / 720f, scale, c, font);
-
-        // One of the game's textures over a box on the grid (false while its dictionary is still loading).
-        public static bool Sprite(string dict, string name, float x, float y, float w, float h, Color c)
-        {
-            TXD.REQUEST_STREAMED_TEXTURE_DICT(dict, false);
-            if (!TXD.HAS_STREAMED_TEXTURE_DICT_LOADED(dict)) return false;
-            GRAPHICS.DRAW_SPRITE(dict, name, X(x + w / 2f), (y + h / 2f) / 720f, Wd(w), h / 720f, 0f, c.R, c.G, c.B, c.A, false);
-            return true;
-        }
-
-        // Text cut into lines of at most `width` characters, at spaces.
-        public static List<string> Wrap(string text, int width)
-        {
-            var lines = new List<string>();
-            foreach (var para in (text ?? "").Split('\n'))
-            {
-                var line = new StringBuilder();
-                foreach (var word in para.Split(' '))
-                {
-                    if (line.Length > 0 && line.Length + 1 + word.Length > width) { lines.Add(line.ToString()); line.Clear(); }
-                    if (line.Length > 0) line.Append(' ');
-                    line.Append(word);
-                }
-                lines.Add(line.ToString());
-            }
-            return lines;
         }
 
         // A panel of lines, laid out on a 1280x720 screen like the old ScaledDraw; x: where its text starts (the
