@@ -62,6 +62,7 @@ namespace RDR2Coop.Mod
             TASK.CLEAR_PED_TASKS_IMMEDIATELY(me, false, true);
             PED.SET_PED_ONTO_MOUNT(me, _nearHorse, Seat, true);
             With = _near; _horse = _nearHorse; _near = 0; _withName = Clean(link.NameOf(With));
+            PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(me, 1);   // never: at a canter the game threw the passenger off its partner's stand-in's horse (tested 30 Oct)
             _onSince = _lastLook = now; _seated = false; _offAt = 0;
             Screen.DisplaySubtitle($"Co-op: riding with {_withName} (dismount to get off)");
             CoopScript.Log($"ride double: behind {_withName}");
@@ -103,13 +104,29 @@ namespace RDR2Coop.Mod
             {
                 if (now - _onSince < 1000) return;   // still getting on
                 if (!_seated) Screen.DisplaySubtitle($"Co-op: couldn't get on {_withName}'s horse");
-                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)"));
+                int on = PED.GET_MOUNT(me);
+                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)") + $" (now on {on}, theirs {_horse} exists {Peds.Exists(_horse)}, their stand-in on it {(puppets.TryGetValue(With, out var sp) && PED.GET_MOUNT(sp.Handle) == _horse)})");
                 With = 0; _horse = 0; _offAt = 0;
+                PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(me, 0);   // the game's own again
                 return;
             }
             _seated = true;
-            if (down || MissionProbe.InMissionScene || !puppets.TryGetValue(With, out var p) || p.HorseHandle != _horse || !Riding.CanCarry(stateOf(With)))
-                Off(me);   // the next look ends the ride
+            // The horse goes down (knocked over, tripped, shot) or its rider is thrown in their game: we come off too,
+            // tumbling as a rider would (never-knocked-off only holds while the ride is a ride). Not for a fall alone:
+            // a horse in the air over a fence or a drop counts as falling.
+            var rs = stateOf(With);
+            string thrown = ENTITY.IS_ENTITY_DEAD(_horse) ? "their horse died" : PED.IS_PED_RAGDOLL(_horse) ? "their horse went down"
+                          : (rs.Pose & PoseFlags.Ragdoll) != 0 ? "they were thrown" : null;
+            if (thrown != null)
+            {
+                CoopScript.Log($"ride double: thrown off {_withName}'s horse: {thrown}");
+                PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(me, 0);
+                PED.SET_PED_TO_RAGDOLL(me, 1500, 3000, 0, false, false, null);   // the next look ends the ride
+                return;
+            }
+            string why = down ? "we're down or busy" : MissionProbe.InMissionScene ? "a mission scene" : !puppets.TryGetValue(With, out var p) ? "their stand-in went"
+                       : p.HorseHandle != _horse ? $"their horse changed ({_horse} -> {p.HorseHandle})" : !Riding.CanCarry(stateOf(With)) ? $"their game says they can't carry (mounted {stateOf(With).Mounted}, flags {stateOf(With).Flags})" : null;
+            if (why != null) { CoopScript.Log($"ride double: getting off {_withName}'s horse: {why}"); Off(me); }   // the next look ends the ride
         }
 
         // A partner's game says they sit behind st.RidingWith: put their stand-in in the seat behind that rider
@@ -159,7 +176,7 @@ namespace RDR2Coop.Mod
         public void Fill(ref PlayerState s) { if (With != 0) s = Riding.AsPassenger(s, With); }
 
         // Session over: the stand-ins and their horses are gone (LetGo got us off ours first).
-        public void Clear() { With = 0; _horse = 0; _near = 0; _offAt = 0; _carried.Clear(); }
+        public void Clear() { if (With != 0) PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(PLAYER.PLAYER_PED_ID(), 0); With = 0; _horse = 0; _near = 0; _offAt = 0; _carried.Clear(); }
 
         static int MyMount() { int me = PLAYER.PLAYER_PED_ID(); return PED.IS_PED_ON_MOUNT(me) ? PED.GET_MOUNT(me) : 0; }
 
