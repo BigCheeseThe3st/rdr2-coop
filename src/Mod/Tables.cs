@@ -57,8 +57,16 @@ namespace RDR2Coop.Mod
         string _movesFor, _shownMoves;   // the state and the moves (labels and actions) our list was made for
         bool _menuMove;                  // the menu row said "Your move at the table" when the menu opened
         uint _sit;
+        RealPoker _real;      // our poker table is one of the story's own: its chairs and the game's cards (src/Mod/RealPoker.cs)
+        bool _realLooked;     // looked for one at this table's spot
         int _sitTry = -1;
         long _sitTryMs;
+
+        // At a story poker table: the chair of a seat (the players, in seat order, take chairs 0, 1...; a card player is
+        // in its own chair, its id minus TableRun.FirstBot).
+        int ChairOf(byte id) => TableRun.IsBot(id) ? id - TableRun.FirstBot : _run == null ? -1 : _run.Seats.Where(s => !TableRun.IsBot(s)).ToList().IndexOf(id);
+        int Humans => _run == null ? 0 : _run.Seats.Count(s => !TableRun.IsBot(s));
+        Func<byte, string> Names(ServerLink link) => id => TableRun.IsBot(id) ? $"Card player {id - TableRun.FirstBot + 1}" : link.NameOf(id);
 
         static bool Connected(ServerLink link) => link != null && link.State == LinkState.Connected;
 
@@ -99,20 +107,24 @@ namespace RDR2Coop.Mod
             if (_run != null) { Leave(link, "you left the table", "closed"); return; }
             if (!CanSit()) return;
             var rows = Playable.Select(g => (Title(g), (Action)(() => PickStakes(g, link)))).ToList();
+            var real = Games.Poker ? RealPoker.Find(PED_POS(), 4f, log: true) : null;   // standing at one of the story's poker tables: play there
+            if (real != null) rows.Insert(0, ("Poker at this table (the game's table and cards)", () => PickStakes("poker", link, CoopScript.ToNet(real.Centre))));
             PickList.Open("Play cards or dice here", rows, null, "Partners within 10 m join from their co-op menu");
         }
 
-        void PickStakes(string game, ServerLink link)
+        static RDR2.Math.Vector3 PED_POS() => ENTITY.GET_ENTITY_COORDS(PLAYER.PLAYER_PED_ID(), true, true);
+
+        void PickStakes(string game, ServerLink link, Vec3? at = null)
         {
-            var rows = TableMsg.Stakes.Select(c => (Money.Dollars(c), (Action)(() => OpenTable(game, c, link)))).ToList();
+            var rows = TableMsg.Stakes.Select(c => (Money.Dollars(c), (Action)(() => OpenTable(game, c, link, at)))).ToList();
             PickList.Open($"{Title(game)}: the stakes", rows, null, "The unit bet: everyone brings up to 50 times it to each hand");
         }
 
-        void OpenTable(string game, int stakes, ServerLink link)
+        void OpenTable(string game, int stakes, ServerLink link, Vec3? at = null)
         {
             if (_run != null || !Connected(link) || !TableRegistry.Has(game) || !CanSit()) return;
             _cash = Money.Cents;
-            _run = TableRun.Open(link.MyId, _seq = _seq % 9999 + 1, () => TableRegistry.Make(game), stakes, _myPos, _now);
+            _run = TableRun.Open(link.MyId, _seq = _seq % 9999 + 1, () => TableRegistry.Make(game), stakes, at ?? _myPos, _now);   // a story table: its middle, so every game finds it
             CoopScript.Log($"table {_run.Id}: {game} at {Money.Dollars(stakes)} opened by us");
             Say($"Co-op: your {Title(game)} table is open: partners within 10 m can join from the co-op menu");
             Flush(_run, link);
@@ -157,7 +169,8 @@ namespace RDR2Coop.Mod
             Seated = _run.Seated;
             Moves(menuOpen);
             if (!Seated || MissionProbe.InMissionScene || HUD.IS_PAUSE_MENU_ACTIVE() || CAM.IS_SCREEN_FADED_OUT() || CAM.IS_SCREEN_FADING_OUT()) return;
-            var lines = _run.Lines(link.NameOf).Take(12).Select(l => (l.text, Tone.Of(l.tone))).ToList();
+            if (_real != null && _run.Game is Poker poker) { _real.HideTheirTable(now); _real.Show(poker, ChairOf, link.MyId); }
+            var lines = _run.Lines(Names(link)).Take(12).Select(l => (l.text, Tone.Of(l.tone))).ToList();
             float width = Math.Min(640f, 32f + 10f * lines.Max(l => l.Item1.Length));   // ~10 px a character, as the party list reckons
             Ui.Panel(lines, width, 1264f - width, Top);
         }
@@ -307,6 +320,26 @@ namespace RDR2Coop.Mod
         // Every 200 ms while seated, until we sit or no sitting scenario loads.
         void Sit(long now)
         {
+            if (!_realLooked)   // once a table: is its spot one of the story's poker tables? (every seated game finds the same one)
+            {
+                _realLooked = true;
+                _real = _run.Game is Poker ? RealPoker.Find(CoopScript.ToGame(_run.At), 2.5f) : null;
+                if (_real != null) CoopScript.Log($"table {_run.Id}: at one of the game's poker tables ({_real.SeatCount} chairs)");
+            }
+            if (_real != null)
+            {
+                Func<int, bool> ours = h => Peds.Ours.Contains(h);
+                _real.ClearChairs(Humans, ours, now);
+                if (_run.IAmHost)   // the card players left in their chairs play too
+                {
+                    if (_run.MakeBotView == null) _run.MakeBotView = () => TableRegistry.Make("poker");
+                    if (_run.BotPick == null) _run.BotPick = Poker.BotPick;
+                    int humans = Humans;
+                    _run.SetBots(_real.CardPlayerChairs(ours).Where(c => c >= humans).Take(TableMsg.MaxSeats - humans).Select(c => (byte)(TableRun.FirstBot + c)).ToList());
+                }
+                int k = ChairOf(_run.Me);
+                if (k >= 0 && k < _real.SeatCount) { _real.Sit(k, now); return; }   // more of us than chairs: the rest sit on the floor as at a mod table
+            }
             if (_sit != 0 || _sitTry >= Sits.Length) return;
             if (_sitTry < 0) { _sitTry = 0; _sitTryMs = now; }
             uint scenario = MISC.GET_HASH_KEY(Sits[_sitTry]);
@@ -328,6 +361,9 @@ namespace RDR2Coop.Mod
 
         void Stand()
         {
+            _real?.Clear();
+            _real = null;
+            _realLooked = false;
             if (_sit != 0)
             {
                 int me = PLAYER.PLAYER_PED_ID();

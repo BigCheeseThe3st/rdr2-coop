@@ -66,6 +66,20 @@
 //   the same link and prints "paused"/"resumed" with its id and roster; a "disconnected" or roster line
 //   in between means the server dropped it. Try 7, 15 and 60.
 //   mono build/FakePlayer.exe <server> <port> <password> partner table
+//   mono build/FakePlayer.exe <server> <port> <password> owner keys
+// keys (owner): the plain owner area, plus every 2 s an EntityKeys notice saying its NPCs 1-4 are companions 0-3
+//   (bubbles + doubles test: a game with [Gameplay] Bubbles=Yes, outranked by this one, should hide its own
+//   companions 0-3 while the walkers are near, and show them again 2 s after this quits).
+//   mono build/FakePlayer.exe <server> <port> <password> owner hostworld <dump file> [seconds]
+// hostworld (owner): a host whose story is <dump file> (36268 save globals, e.g. the softsave probe's
+//   scripts\RDR2Coop.worlddump.bin): serves it to your game when it asks (want), resends lost pieces (miss)
+//   and chunks (chunk), sends sums every 5 s, no changes of its own, and quits after [seconds] (default 120)
+//   so your game should take its own story back.
+//   mono build/FakePlayer.exe <server> <port> <password> owner cutscene [label] [seconds] [list@s,list@s...] [next,next...]
+// cutscene (owner): invites you to a mission party (press Y), then every 2 minutes is "in" the story cutscene
+//   <label> (default MUD3_MCS2) for <seconds> (default 60) from 10 s in: sends the Cutscene notice once a second
+//   with itself as ARTHUR and its NPC 1 as "uncle", the scene's own origin, and "end" after. Your game should play it with its stand-in as
+//   Arthur (scripts\RDR2Coop.log: "cutscene: ...") instead of the black screen.
 //   mono build/FakePlayer.exe <server> <port> <password> owner table
 // table (partner): stands 2 m from you and plays poker, blackjack, dominoes and five finger fillet in
 //   turn, 20 s at a table and 10 s up: its stand-in sits down for each (on nothing, unless you stand
@@ -155,12 +169,33 @@ static class FakePlayer
             else Console.WriteLine($"'{args[5]}' has no table bot (tools/TableBots.cs): the game's own tables, with it as the model");
         }
         int pauseS = mode == "pause" ? (args.Length > 5 ? int.Parse(args[5]) : 7) : 0;
-        uint pedModel = ToolUtil.Joaat(args.Length > 5 && args[5] != "record" && mode != "contest" && mode != "tables" && pauseS == 0 ? args[5] : "cs_charlessmith");
+        uint pedModel = ToolUtil.Joaat(args.Length > 5 && args[5] != "record" && mode != "contest" && mode != "tables" && mode != "cutscene" && pauseS == 0 ? args[5] : "cs_charlessmith");
         if (mode == "contest" && args.Length > 5) ContestMode.Kind = args[5];   // contest: the fifth argument is the kind, not a model
         bool owner = role == "owner";
         bool markers = args.Length > 4 && args[4] == "markers";
         bool quiet = owner && mode == "table";   // owner table: party's cycle without NPCs
-        bool party = owner && args.Length > 4 && (args[4] == "party" || markers || quiet);   // markers: the party without the cycle
+        bool hostworld = owner && mode == "hostworld";
+        long lastKeys = 0;
+        ulong[] hwWorld = null; List<string> hwPieces = null; var hwQueue = new Queue<(byte to, string line)>(); long hwLastSums = 0, hwEnd = long.MaxValue;
+        if (hostworld)
+        {
+            var raw = System.IO.File.ReadAllBytes(args[5]);
+            hwWorld = new ulong[WorldLayout.Total];
+            Buffer.BlockCopy(raw, 0, hwWorld, 0, Math.Min(raw.Length, hwWorld.Length * 8));
+            var packed = WorldShare.Pack(hwWorld);
+            hwPieces = WorldShare.Pieces(1, packed, (uint)hwWorld[79 - WorldLayout.First]);
+            hwEnd = (args.Length > 6 ? int.Parse(args[6]) : 120) * 1000L;
+            Console.WriteLine($"host world: {raw.Length} bytes, {packed.Length} deflated, {hwPieces.Count} pieces, model {(uint)hwWorld[79 - WorldLayout.First]:X8}, camp {(int)(uint)hwWorld[4324 - WorldLayout.First]}");
+        }
+        bool cutscene = owner && mode == "cutscene";
+        string cutLabel = cutscene && args.Length > 5 ? args[5] : "MUD3_MCS2";
+        int cutS = cutscene && args.Length > 6 ? int.Parse(args[6]) : 60;
+        // [lists]: playback lists by time, "2-IfMUD2NotComplete@0,NormalStart@1.1" (as the host's mission switched them); [next]: queued ones
+        var cutLists = (cutscene && args.Length > 7 ? args[7] : "NormalStart@0").Split(',').Select(x => x.Split('@'))
+                        .Select(x => (name: x[0], at: x.Length > 1 ? float.Parse(x[1], System.Globalization.CultureInfo.InvariantCulture) : 0f)).OrderBy(x => x.at).ToList();
+        var cutNext = cutscene && args.Length > 8 ? args[8].Split(',').ToList() : new List<string>();
+        bool cutSent = false; long lastCut = 0;
+        bool party = owner && args.Length > 4 && (args[4] == "party" || markers || quiet || cutscene);   // markers: the party without the cycle
         List<Objective> hostMarkers = null;
         Vec3? onMarker = null; bool joinedSaid = false;
         long lastMarkers = -3000, lastAsk = -15000;
@@ -206,6 +241,15 @@ static class FakePlayer
         string heardWaypoint = null;   // the game repeats its waypoint every 10 s: print changes only
         link.NoticeReceived += (from, n) =>
         {
+            if (hostworld && n.Kind == NoticeKind.WorldShare)
+            {
+                var f = n.Text.Split(' ');
+                Console.WriteLine($"{DateTime.Now:HH:mm:ss} host world from player {from}: {(n.Text.Length > 80 ? n.Text.Substring(0, 80) + "..." : n.Text)}");
+                if (f[0] == "want") foreach (var l in hwPieces) hwQueue.Enqueue((from, l));
+                else if (f[0] == "miss") foreach (var p in f.Skip(2)) { if (int.TryParse(p, out int i) && i >= 0 && i < hwPieces.Count) hwQueue.Enqueue((from, hwPieces[i])); }
+                else if (f[0] == "chunk" && int.TryParse(f[1], out int c)) foreach (var l in WorldShare.Chunk(1, hwWorld, c)) hwQueue.Enqueue((from, l));
+                return;
+            }
             if (n.Kind == NoticeKind.Waypoint)
             {
                 if (n.Text != heardWaypoint) Console.WriteLine($"{DateTime.Now:HH:mm:ss} player {from}'s waypoint: " + (string.IsNullOrEmpty(n.Text) ? "cleared" : n.Text));
@@ -357,6 +401,17 @@ static class FakePlayer
                 }
             }
             link.Poll(now);
+            if (owner && mode == "keys" && link.State == LinkState.Connected && other != 0 && now - lastKeys > EntityKeys.SendEveryMs)
+            {
+                lastKeys = now;
+                link.SendNotice(other, NoticeKind.EntityKeys, EntityKeys.Write(new[] { new KeyValuePair<int, ushort>(0, 1), new KeyValuePair<int, ushort>(1, 2), new KeyValuePair<int, ushort>(2, 3), new KeyValuePair<int, ushort>(3, 4) }));
+            }
+            if (hostworld && link.State == LinkState.Connected)
+            {
+                for (int i = 0; i < 12 && hwQueue.Count > 0; i++) { var (to, l) = hwQueue.Dequeue(); link.SendNotice(to, NoticeKind.WorldShare, l); }
+                if (other != 0 && now - hwLastSums > WorldShare.SumsEveryMs) { hwLastSums = now; foreach (var l in WorldShare.Sums(1, hwWorld)) link.SendNotice(other, NoticeKind.WorldShare, l); }
+                if (now > hwEnd) { Console.WriteLine($"{DateTime.Now:HH:mm:ss} host world: time's up, leaving"); return 0; }
+            }
             if (justResumed)   // after that Poll: a drop or a host change only shows once the backlog is read
             {
                 justResumed = false;
@@ -380,7 +435,34 @@ static class FakePlayer
                         link.SendParty(new PartyMsg { Kind = PartyKind.Invite, PartyId = partyId });
                         Console.WriteLine("invited everyone to a mission party");
                     }
-                    if (partyStart >= 0 && !markers)
+                    if (partyStart >= 0 && cutscene)
+                    {
+                        long t = (now - partyStart) % 120000;
+                        bool inScene = t >= 10000 && t < 10000 + cutS * 1000L;
+                        if (inScene)
+                        {
+                            s.Flags |= StateFlags.InCutscene;
+                            if (now - lastCut >= CutsceneMsg.SendEveryMs)
+                            {
+                                lastCut = now;
+                                float ct = (t - 10000) / 1000f;
+                                var cm = new CutsceneMsg { Label = cutLabel, Time = ct, List = cutLists.Last(x => x.at <= ct || x == cutLists[0]).name };
+                                cm.Next.AddRange(cutNext.Concat(cutLists.Select(x => x.name)).Where(n => n != cm.List).Distinct());
+                                cm.Parts.Add(new KeyValuePair<string, ushort>("ARTHUR", CutsceneMsg.Host));
+                                cm.Parts.Add(new KeyValuePair<string, ushort>("uncle", 1));   // NPC 1 of the fake area plays Uncle
+                                link.SendNotice(Protocol.Broadcast, NoticeKind.Cutscene, cm.Write());
+                                if (!cutSent) Console.WriteLine($"{DateTime.Now:HH:mm:ss} in cutscene {cutLabel} for {cutS} s");
+                                cutSent = true;
+                            }
+                        }
+                        else if (cutSent)
+                        {
+                            cutSent = false;
+                            link.SendNotice(Protocol.Broadcast, NoticeKind.Cutscene, new CutsceneMsg { Label = cutLabel, End = true }.Write());
+                            Console.WriteLine($"{DateTime.Now:HH:mm:ss} cutscene over");
+                        }
+                    }
+                    else if (partyStart >= 0 && !markers)
                     {
                         long t = (now - partyStart) % 40000;
                         if (t >= 10000 && t < 18000) s.Flags |= StateFlags.InCutscene;
@@ -515,6 +597,7 @@ static class FakePlayer
                         var vel = new Vec3(-5f * (float)Math.Sin(driveAngle), 5f * (float)Math.Cos(driveAngle), 0);
                         s.Position = pos;
                         s.VehicleId = driveVehicle;
+                        s.VehicleOwner = other;   // bubbles: the wagon is in the real game's world
                         s.Seat = -1;
                         s.Flags = StateFlags.Driving;
                         s.MountPosition = pos;
@@ -543,6 +626,7 @@ static class FakePlayer
                     else if (mode == "passenger" && otherState?.VehicleId > 0)
                     {
                         s.VehicleId = otherState.Value.VehicleId;   // the real player's own vehicle
+                        s.VehicleOwner = otherState.Value.VehicleOwner != 0 ? otherState.Value.VehicleOwner : other;
                         s.Seat = 0;
                         s.Position = centre;
                     }
@@ -584,6 +668,7 @@ static class FakePlayer
                             s.Position = s.MountPosition;
                             s.Velocity = f * trainSpeed;
                             s.VehicleId = tr.Id;
+                            s.VehicleOwner = other;
                             s.Seat = -1;   // the driving seat; no Driving flag for a train (older hosts would push it like a wagon)
                             if (now - lastTrainReport > 2000)
                             {
@@ -616,7 +701,7 @@ static class FakePlayer
                     }
                 }
                 if (mode == "doors" && otherState != null) DoorsDemo(link, owner, other, otherState.Value, ref s, now);
-                link.SendState(s);
+                { if (!args.Contains("nobubbles")) s.Flags |= StateFlags.Bubbles; link.SendState(s); }   // says [Gameplay] Bubbles is on here: your game runs bubbles only if everyone does ('nobubbles': a mixed session)
                 if (mode == "waypoint" && otherState != null)
                 {
                     if (waypointBase == null) waypointBase = otherState.Value.Position;
@@ -677,7 +762,7 @@ static class FakePlayer
                     }));
                 }
 
-                if (owner && !quiet && anchor != null && otherState != null && now - lastWorld >= 50)
+                if (owner && !quiet && !hostworld && anchor != null && otherState != null && now - lastWorld >= 50)
                 {
                     lastWorld = now;
                     var a = anchor.Value;
