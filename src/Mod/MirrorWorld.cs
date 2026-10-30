@@ -60,10 +60,12 @@ namespace RDR2Coop.Mod
             public int Train;
             public uint Config;
             public long LastFixMs;
+            public List<int> Cars = new List<int>();   // its carriages, removed with it even when the engine went first
         }
 
         const float TrainFixDistance = 40f;
         readonly Dictionary<ushort, MirrorTrain> _trains = new Dictionary<ushort, MirrorTrain>();
+        readonly List<int> _oldTrains = new List<int>();   // copies DELETE_MISSION_TRAIN didn't remove at once (one just made): tried again
         bool _trainsOff;
 
         const float ClearRadius = 200f;
@@ -129,6 +131,7 @@ namespace RDR2Coop.Mod
 
             // Trains: none of our own while we show someone else's area.
             if (!_trainsOff && !Bubbles) { VEHICLE.SET_RANDOM_TRAINS(false); VEHICLE.DELETE_ALL_TRAINS(); _trainsOff = true; }
+            foreach (int old in _oldTrains.ToList()) { int h = old; if (Peds.Exists(h)) DeleteTrain(ref h); if (!Peds.Exists(old)) _oldTrains.Remove(old); }
             var tseen = new HashSet<ushort>();
             foreach (var t in _buffer.LatestTrains())
             {
@@ -537,6 +540,27 @@ namespace RDR2Coop.Mod
             return ped;
         }
 
+        // Plays a scenario (sitting, leaning, a piano) where the owner's ped plays it. Played in place, one on a seat
+        // or a prop sat in mid-air wherever that prop isn't here at that height (another camp, a prop not streamed,
+        // the riverboat's piano with the boat elsewhere: 30 Oct, seated NPCs and a partner at a piano floating). Up
+        // off the ground: our own seat or prop of any kind right there if there is one, else standing on the ground.
+        internal static void PlayScenario(int ped, uint scenario, Vector3 at, float heading)
+        {
+            var ground = OnGround(at);
+            if (at.Z - ground.Z > 0.4f)
+            {
+                if (TASK.DOES_SCENARIO_EXIST_IN_AREA(at, 1.0f, true, 0, false))
+                {
+                    TASK.TASK_USE_NEAREST_SCENARIO_TO_COORD_WARP(ped, at, 1.0f, -1, true, false, false, false);
+                    return;
+                }
+                ENTITY._SET_ENTITY_COORDS_AND_HEADING(ped, ground, heading, false, false, false);
+                return;
+            }
+            ENTITY._SET_ENTITY_COORDS_AND_HEADING(ped, at, heading, false, false, false);
+            TASK.TASK_START_SCENARIO_IN_PLACE_HASH(ped, scenario, -1, true, 0, heading, false);
+        }
+
         // The ground under a point (searching from a little above it), else the point.
         static unsafe Vector3 OnGround(Vector3 p)
         {
@@ -561,6 +585,8 @@ namespace RDR2Coop.Mod
                 ENTITY.SET_ENTITY_INVINCIBLE(train, true);
                 VEHICLE._SET_TRAIN_STOPS_FOR_STATIONS(train, false);   // it stops when the owner's stops
                 mt = new MirrorTrain { Train = train, Config = t.Config };
+                int cars = VEHICLE._GET_TRAIN_CARRIAGE_TRAILER_NUMBER(train);
+                for (int i = 0; i < cars; i++) { int c = VEHICLE.GET_TRAIN_CARRIAGE(train, i); if (c != 0 && c != train) mt.Cars.Add(c); }
                 _trains[t.Id] = mt;
                 CoopScript.Log($"train {t.Id}: created config {t.Config:X8} with {t.Cars} cars");
             }
@@ -586,9 +612,26 @@ namespace RDR2Coop.Mod
             {
                 int h = mt.Train;
                 if (Sync.Trains) TrainDrive.EmptySeats(h);   // stand-ins and copies sit in it now
-                VEHICLE.DELETE_MISSION_TRAIN(&h);
+                DeleteTrain(ref h);
+                if (Peds.Exists(mt.Train)) { _oldTrains.Add(mt.Train); CoopScript.Log($"train {id}: the old copy is still there: removing it again"); }
+            }
+            // Its carriages too: an engine the game removed (out of range, say) left them standing on the track, and a
+            // new copy came on top (George in Kant's game 30 Oct, still several trains after the copies were rebuilt).
+            if (mt != null)
+            {
+                int left = 0;
+                foreach (int c in mt.Cars)
+                    if (Peds.Exists(c)) { left++; Peds.Delete(c); }
+                if (left > 0) CoopScript.Log($"train {id}: {left} carriages of the old copy removed");
             }
             _trains.Remove(id);
+        }
+
+        static unsafe void DeleteTrain(ref int h)
+        {
+            int t = h;
+            VEHICLE.DELETE_MISSION_TRAIN(&t);
+            h = t;
         }
 
         void RemoveVehicle(ushort id)
@@ -637,8 +680,7 @@ namespace RDR2Coop.Mod
             {
                 case EntityAction.Scenario:
                     if (!changed) break;
-                    ENTITY._SET_ENTITY_COORDS_AND_HEADING(m.Ped, at, e.Heading, false, false, false);
-                    TASK.TASK_START_SCENARIO_IN_PLACE_HASH(m.Ped, scenario, -1, true, 0, e.Heading, false);
+                    PlayScenario(m.Ped, scenario, at, e.Heading);
                     break;
                 case EntityAction.HandsUp:
                     if (changed) TASK.TASK_HANDS_UP(m.Ped, -1, 0, -1, false);
@@ -773,7 +815,9 @@ namespace RDR2Coop.Mod
                 Peds.Delete(h);
             }
             if (orphans > 0) CoopScript.Log($"swept {orphans} orphan copies");
-            if (hid > 0) CoopScript.Log($"hid {hid} of our own script-made people (camp, side quests) while showing the owner's world ({_hidden.Count} hidden)");
+            if (hid > 0) CoopScript.Log($"hid {hid} of our own script-made people (camp, side quests) while showing the owner's world ({_hidden.Count} hidden)" +
+                                        (_reshown > 0 ? $", {_reshown} of them again (their script had shown them)" : ""));
+            _reshown = 0;
 
             var keepVehicles = new HashSet<int>(_vehicles.Values.Select(v => v.Veh)) { Peds.VehicleOf(me.Handle) };
             foreach (int h in EntityScan.Vehicles(new[] { mePos }, ClearRadius))
@@ -801,9 +845,17 @@ namespace RDR2Coop.Mod
         }
 
         // One of our own script-made people out of sight: invisible, no collision, still. True if newly hidden.
+        int _reshown;   // hidden people their scripts showed again, hidden again this sweep (logged with it)
+
         bool Hide(int h)
         {
-            if (!_hidden.Add(h)) return false;
+            // Hidden before, but its script showed it again (a camp's people start their next chore visible and moving:
+            // George in a host's camp 30 Oct, "camp members, each doing their own stuff", twice over): hidden again.
+            if (!_hidden.Add(h))
+            {
+                if (!ENTITY.IS_ENTITY_VISIBLE(h)) return false;
+                _reshown++;
+            }
             ENTITY.SET_ENTITY_VISIBLE(h, false);
             ENTITY.SET_ENTITY_COLLISION(h, false, false);
             ENTITY.FREEZE_ENTITY_POSITION(h, true);
@@ -848,6 +900,8 @@ namespace RDR2Coop.Mod
             foreach (var id in _mirrors.Keys.ToList()) Remove(id);
             foreach (var id in _vehicles.Keys.ToList()) RemoveVehicle(id);
             foreach (var id in _trains.Keys.ToList()) RemoveTrain(id);
+            foreach (int old in _oldTrains) { int h = old; if (Peds.Exists(h)) DeleteTrain(ref h); }
+            _oldTrains.Clear();
             _lastStates = new List<EntityState>();
             if (_trainsOff) { VEHICLE.SET_RANDOM_TRAINS(true); _trainsOff = false; }
             _buffer.Clear();

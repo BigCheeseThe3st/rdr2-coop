@@ -46,7 +46,7 @@ PRODUCTS = {
                       zip="RDR2-Coop-Linux-Installer-{v}.zip", mod_version=False),
     "beta": dict(file_id=None, name="RDR2 Coop Beta", category="optional", version_file="VERSION", changelog="CHANGELOG.md",
                  zip="RDR2-Coop-{v}.zip", mod_version=False),   # the main file and the page's version stay on the stable release
-    "enrage-patch": dict(file_id="8217585", name="RDR2 Coop EnRage Patch", category="optional",
+    "enrage-patch": dict(file_id="8217585", name="enRage Coop Patch (OBSOLETE AS OF COOP 0.7.66)", category="optional",
                          version_file="ENRAGE_PATCH_VERSION", changelog="CHANGELOG-ENRAGE-PATCH.md",
                          zip="RDR2-Coop-enRage-Patch-{v}.zip", mod_version=False),
 }

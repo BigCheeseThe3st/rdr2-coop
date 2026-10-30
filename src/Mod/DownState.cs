@@ -22,10 +22,9 @@ namespace RDR2Coop.Mod
         const int BringBackForMs = 5000;  // a death we can't undo in this long is let through (never stuck dead)
 
         public bool IsDown { get; private set; }
-        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1, _releasedAt = -1, _downSince = -1;
-        const int ReleaseMs = 500;   // after bringing us back: the respawn hold let go this long
+        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1, _downSince = -1;
         const int ClearScreenMs = 30000;   // after bringing us back from the game's death: its respawn screen is lifted for this long
-        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged, _bledOut;
+        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged, _bledOut, _letGo;
 
         static Ped Me => Game.Player.Character;
         static int Health => ENTITY.GET_ENTITY_HEALTH(Me.Handle);
@@ -74,7 +73,7 @@ namespace RDR2Coop.Mod
         {
             var me = Me;
             bool canRevive = partners > 0 && !allOthersDown && !_bledOut;
-            Guard(canRevive);
+            Guard(canRevive && !_letGo);
 
             if (me.IsDead)
             {
@@ -87,7 +86,7 @@ namespace RDR2Coop.Mod
             _deadSince = -1;
             if (_wasDead) { _wasDead = false; _bledOut = false; _returnAfterDeath = following; _calmSince = -1; }
             if (now < _clearScreenUntil) ClearDeathScreen();
-            if (_releasedAt >= 0 && now - _releasedAt > ReleaseMs) { _releasedAt = -1; if (_guarding) MISC.PAUSE_DEATH_ARREST_RESTART(true); }
+            if (_letGo && !IsDown) _letGo = false;   // up again: the hold back (the next death waits for a revive again)
 
             if (!IsDown)
             {
@@ -170,8 +169,9 @@ namespace RDR2Coop.Mod
             GRAPHICS.ANIMPOSTFX_STOP_ALL();   // the death screen's colour effect
             _clearScreenUntil = now + ClearScreenMs; _clearLogged = false;
             // The death the game is holding back stays pending while held: Esc, the map and the minimap stayed dead and
-            // lawmen came but wouldn't fight, until the hold was let go (30 Oct). We're alive now: let it go briefly.
-            if (_guarding) { MISC.PAUSE_DEATH_ARREST_RESTART(false); _releasedAt = now; }
+            // lawmen came but wouldn't fight, until the hold was let go (30 Oct; letting go for 0.5 s wasn't enough).
+            // Down we're invincible: the hold is let go until we're up.
+            _letGo = true;
             _deadSince = -1;
             IsDown = false;
             GoDown($"the game killed us (cause {cause:X8}): brought back where we fell instead");

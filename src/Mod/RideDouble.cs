@@ -28,7 +28,7 @@ namespace RDR2Coop.Mod
         string _withName = "";
         byte _near;                              // a partner whose horse we could get on now (looked for every 200 ms)
         int _nearHorse;
-        bool _takeMountKey, _keyPressed, _seated;
+        bool _takeMountKey, _keyPressed, _seated, _keyHeld;
         long _lastLook, _onSince, _offAt;
         // Partners whose stand-in we sat behind a rider here (on our horse, or another stand-in's), and when.
         readonly Dictionary<byte, (int horse, long at)> _carried = new Dictionary<byte, (int horse, long at)>();
@@ -63,7 +63,7 @@ namespace RDR2Coop.Mod
             PED.SET_PED_ONTO_MOUNT(me, _nearHorse, Seat, true);
             With = _near; _horse = _nearHorse; _near = 0; _withName = Clean(link.NameOf(With));
             PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(me, 1);   // never: at a canter the game threw the passenger off its partner's stand-in's horse (tested 30 Oct)
-            _onSince = _lastLook = now; _seated = false; _offAt = 0;
+            _onSince = _lastLook = now; _seated = false; _offAt = 0; _keyHeld = true;
             Screen.DisplaySubtitle($"Co-op: riding with {_withName} (dismount to get off)");
             CoopScript.Log($"ride double: behind {_withName}");
         }
@@ -95,7 +95,16 @@ namespace RDR2Coop.Mod
         // game hasn't let us down itself by then; their getting off, going down or leaving at once.
         void WhileRiding(int me, bool down, IDictionary<byte, Puppet> puppets, Func<byte, PlayerState> stateOf, long now)
         {
-            if (_keyPressed) { _keyPressed = false; Off(me); }
+            // The mount key that sat us behind them is still down for a few frames: on a horse the same key is the
+            // game's dismount, and it took us straight off again (a tester's ride ended within a second every time,
+            // 30 Oct; our own tests used RideDouble's key). Held off until the key is let go.
+            if (_keyHeld)
+            {
+                PAD.DISABLE_CONTROL_ACTION(0, MountKey, false);
+                PAD.DISABLE_CONTROL_ACTION(0, DismountKey, false);
+                _keyHeld = PAD.IS_DISABLED_CONTROL_PRESSED(0, MountKey) || PAD.IS_DISABLED_CONTROL_PRESSED(0, DismountKey);
+            }
+            else if (_keyPressed) { _keyPressed = false; Off(me); }
             else if (_offAt == 0 && (PAD.IS_CONTROL_JUST_PRESSED(0, DismountKey) || PAD.IS_DISABLED_CONTROL_JUST_PRESSED(0, DismountKey))) _offAt = now + 1500;
             else if (_offAt != 0 && now >= _offAt) { _offAt = 0; Off(me); }
             if (now - _lastLook < 200) return;

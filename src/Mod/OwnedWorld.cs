@@ -20,6 +20,11 @@ namespace RDR2Coop.Mod
         HashSet<int> _vehicles = new HashSet<int>();
         long _lastCountLogMs;
         readonly List<int> _trainIds = new List<int>();   // engines sent last round, kept in the id map
+        // Per engine: the carriage list sent (its config) and a new one waiting to hold still. A train's carriages
+        // appear over a few frames: sending each in-between list made a guest's game build the train again each
+        // time, and the first copy sometimes stayed as a second train (30 Oct: "train dupe glitch").
+        readonly Dictionary<int, (string sent, uint config, string waiting, int since)> _trainCars = new Dictionary<int, (string, uint, string, int)>();
+        const int TrainSettleMs = 1500;
         // Shots are counted every frame: IS_PED_SHOOTING is true only around
         // the frame a bullet leaves, which 20 Hz snapshots would mostly miss.
         List<int> _tracked = new List<int>();
@@ -292,12 +297,22 @@ namespace RDR2Coop.Mod
                 carriagesOf[v] = list;
             }
             var result = new List<TrainState>();
+            foreach (int gone in _trainCars.Keys.Where(e => !carriagesOf.ContainsKey(e)).ToList()) _trainCars.Remove(gone);
             foreach (int engine in trainParts.Where(v => !isCarriage.Contains(v))
                          .OrderBy(v => points.Min(p => Vec3.Distance(CoopScript.ToNet(Peds.Position(v)), p)))
                          .Take(WorldSnapshot.MaxTrains))
             {
                 var models = carriagesOf[engine].Select(c => ENTITY.GET_ENTITY_MODEL(c)).ToList();
-                uint config = TrainConfigs.For(engine, models);
+                string key = string.Join(",", models);
+                int tick = Environment.TickCount;
+                _trainCars.TryGetValue(engine, out var tc);
+                if (key != tc.sent)
+                {
+                    if (key != tc.waiting) { tc.waiting = key; tc.since = tick; }
+                    else if (unchecked(tick - tc.since) >= TrainSettleMs) { tc.sent = key; tc.config = TrainConfigs.For(engine, models); }
+                    _trainCars[engine] = tc;
+                }
+                uint config = tc.config;   // the settled list's (until then nothing, or the one sent before)
                 if (config == 0) continue;
                 var vel = ENTITY.GET_ENTITY_VELOCITY(engine, 0);
                 var fwd = ENTITY.GET_ENTITY_FORWARD_VECTOR(engine);

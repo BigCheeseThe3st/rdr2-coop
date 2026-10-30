@@ -3,6 +3,19 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.9.0-beta.8.4.5 (beta, 30 Oct 2026) - protocol 13
+- Riding double works with your mount key: you were thrown off a partner's
+  horse within a second, because the key that sat you behind them is also the
+  game's dismount on a horse.
+- Guests in the host's camp no longer see every camp member twice (your own
+  camp's people came back each time they started a new chore).
+- No more duplicate trains: the host sends a train once all its carriages have
+  loaded, and a guest's game removes an old copy's carriages with it.
+- Seated people and partners at a piano no longer float in mid-air: where your
+  game has no seat at that spot, they stand on the ground.
+- After the game kills you outright and the mod brings you back, Esc and the
+  map stay usable (needs testing).
+
 ## 0.9.0-beta.8.4.4 (beta, 30 Oct 2026) - protocol 13
 - What a guest buys in the host's story comes home: every 2 minutes the mod
   keeps the guest's own money, horse and items, and autosaves the guest's own

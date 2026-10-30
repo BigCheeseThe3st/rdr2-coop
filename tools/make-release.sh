@@ -99,10 +99,12 @@ echo "$VERSION" > "$MAIN/VERSION.txt"
 # main file never puts a second copy of the mod where a hand install would copy both.
 cp dist/shdn/scripts/RDR2Coop.dll RDR2Coop.ini "$SHDN/shdn/scripts/"
 cat > "$SHDN/README-SCRIPTHOOKDOTNET.txt" <<EOF
-RDR2 Co-op $VERSION for ScriptHookRDR2DotNet (optional download, enRage hosts)
-=============================================================================
-Only for the player who hosts with the unofficial enRage co-op patch: the enRage
-link works in this version only. Everyone else uses the main download.
+RDR2 Co-op $VERSION for ScriptHookRDR2DotNet (optional download, the old way)
+============================================================================
+You don't need this for enRage: since 0.7.66 the main download links with enRage
+0.9.6 by itself (put the official enRage files in scripts\ as its instructions
+say). This version is only for players who need ScriptHookRDR2DotNet for other
+mods. Everyone else uses the main download.
 Needs ScriptHookRDR2, ScriptHookRDR2DotNet V2 2.2.0 and .NET Framework 4.8
 (Linux: prepare-prefix.sh from the Linux installer download gives the game's
 Proton prefix .NET 4.8; the installer runs it when you say yes to enRage).
