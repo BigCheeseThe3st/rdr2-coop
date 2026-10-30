@@ -3,6 +3,19 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.9.0-beta.8.4.3 (beta, 30 Oct 2026) - protocol 13
+- enRage saves its world again: with the mod's own loader every enRage save
+  failed ("Could not load file or assembly 'System.Security.Permissions'" in
+  enRage's log), so its nemeses, grudges and history started over each time
+  the game started. The loader now carries that library. Install the zip
+  (the RDR2Coop folder): the in-game update only swaps the mod file.
+- enRage 0.9.6 works with co-op (co-op patch 0.5.0, built in: put the official
+  enRage 0.9.6 files in scripts\ as its own instructions say). enRage 0.9.5.2
+  now runs without the co-op link: update enRage to 0.9.6.
+- Party down: a host brought back from a death no longer sits behind the
+  game's black respawn screen after being revived, and a guest is no longer
+  told "the host is in a cutscene" and blocked from reviving them.
+
 ## 0.9.0-beta.8.4.2 (beta, 30 Oct 2026) - protocol 13
 - Riding double holds at speed: the game threw the passenger off at a canter
   or in a turn; now you stay on until your partner gets off, and you still

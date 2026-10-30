@@ -172,7 +172,7 @@ IN GAME
 ENRAGE (optional, host only)
   The unofficial enRage co-op patch comes with the mod, and the mod applies it
   itself, in memory, each time the game starts. Install the official enRage
-  0.9.5.2 from Nexus the way its own instructions say (its files go in the
+  0.9.6 from Nexus the way its own instructions say (its files go in the
   game's scripts folder) and that's all: no installer, and your enRage file is
   never changed. scripts\RDR2Coop.Core.log says whether the patch went on.
   Another enRage version runs as normal, without the co-op link.

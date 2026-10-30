@@ -159,7 +159,8 @@ namespace RDR2Coop.Mod
             if (Activities.Busy) { Show(); _prompt.Tick(false, now); return; }   // in a mini-game or activity: no fades or moves till it's over
 
             var host = hostState.Value;
-            bool hostHidden = (host.Flags & (StateFlags.InCutscene | StateFlags.ScreenFaded)) != 0;
+            // A host who's down or dead isn't in a cutscene, whatever their screen shows: we stay free to revive them.
+            bool hostHidden = (host.Flags & (StateFlags.InCutscene | StateFlags.ScreenFaded)) != 0 && (host.Flags & (StateFlags.Downed | StateFlags.Dead)) == 0;
             var me = Game.Player.Character;
             bool far = me.Position.DistanceTo(CoopScript.ToGame(host.Position)) > FarDistance;
             Near = !far;

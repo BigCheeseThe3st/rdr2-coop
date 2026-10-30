@@ -17,5 +17,7 @@
        package is copied out by build.sh (runtimes/win/lib), MIT licensed. -->
   <ItemGroup>
     <PackageReference Include="System.Diagnostics.EventLog" Version="9.0.0" GeneratePathProperty="true" />
+    <!-- enRage (.NET Framework) saves through System.Security.Permissions; not in .NET 9: every enRage save failed on this loader (30 Oct) -->
+    <PackageReference Include="System.Security.Permissions" Version="9.0.0" GeneratePathProperty="true" />
   </ItemGroup>
 </Project>

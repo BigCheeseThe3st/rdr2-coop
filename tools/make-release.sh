@@ -21,7 +21,7 @@
 set -e
 cd "$(dirname "$0")/.."
 ENRAGE=$HOME/enrage-private
-OFFICIAL=${OFFICIAL:-$ENRAGE/backups/20261024/NemesisMod.official.dll}   # enRage 0.9.5.2
+OFFICIAL=${OFFICIAL:-$ENRAGE/backups/20261030/NemesisMod.official.dll}   # enRage 0.9.6 (patch 0.5.0; 0.9.5.2 = backups/20261024, patch 0.4.3)
 PATCHED=$ENRAGE/src/bin/Release/net48/NemesisMod.dll
 VERSION=$(tr -d ' \n' < VERSION)
 PATCH_VERSION=$(tr -d ' \n' < ENRAGE_PATCH_VERSION)
@@ -49,6 +49,7 @@ UPLOAD=release/upload
 for f in "dist/RDR2Coop.asi (the loader, host/)" "dist/RDR2Coop/RDR2Coop.Core.dll (api/Core)" "dist/RDR2Coop/RDR2Coop.Core.runtimeconfig.json (api/Core)" \
          "dist/RDR2Coop/RDR2Coop.Api.dll (api/Api)" "dist/RDR2Coop/RDR2Coop.dll (the mod, net9)" "dist/RDR2Coop/NOTICE.txt (build.sh)" \
          "dist/RDR2Coop/ScriptHookRDRNetAPI.dll (api/Compat)" "dist/RDR2Coop/System.Windows.Forms.dll (api/Compat)" "dist/RDR2Coop/System.Diagnostics.EventLog.dll (build.sh)" \
+         "dist/RDR2Coop/System.Security.Permissions.dll (build.sh: enRage's saves)" "dist/RDR2Coop/System.Windows.Extensions.dll (build.sh)" \
          "dist/RDR2Coop/runtime/host/fxr/*/hostfxr.dll (host/make-runtime.sh)" \
          "dist/RDR2Coop/runtime/shared/Microsoft.NETCore.App/*/Microsoft.NETCore.App.deps.json (host/make-runtime.sh)" \
          "dist/RDR2Coop/runtime/shared/Microsoft.NETCore.App/*/Microsoft.NETCore.App.runtimeconfig.json (host/make-runtime.sh)" \
@@ -141,6 +142,7 @@ EOF
 # enRage patch: bsdiff's three blocks re-packed with raw deflate (RDCOPAT1),
 # which setup.py reads with the standard library only.
 ENRAGE_VERSION=$(strings -el "$OFFICIAL" | grep -m1 -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$')
+ENRAGE_VERSION=${ENRAGE_VERSION%.0}   # 0.9.6.0 is enRage 0.9.6
 ~/.venvs/rdr2-release/bin/python - "$OFFICIAL" "$PATCHED" "$ADDON/enrage-coop-patch/NemesisMod.coop.patch" <<'EOF'
 import bz2, struct, sys, zlib, bsdiff4
 old, new, out = sys.argv[1:]

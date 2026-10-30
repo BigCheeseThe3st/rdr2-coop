@@ -1,8 +1,20 @@
 # Unofficial enRage co-op patch - changelog
 
-For enRage 0.9.5.2 (Nexus mod 10967). Needs RDR2 Co-op; host only. For enRage 0.9.5.1, use patch 0.4.1.
+For enRage 0.9.6 (Nexus mod 10967). Needs RDR2 Co-op; host only. For enRage 0.9.5.2, use patch 0.4.3; for 0.9.5.1, patch 0.4.1.
 
-## 0.4.3 (27 Oct 2026) - for enRage 0.9.5.2; needs RDR2 Co-op 0.9.0-beta.8.4 or newer for the full fix
+## 0.5.0 (30 Oct 2026) - for enRage 0.9.6; needs RDR2 Co-op 0.7.66-rc.2 or 0.9.0-beta.8.4.3 or newer
+- Works with enRage 0.9.6 (life stories, townsfolk you can talk to,
+  families, newspapers, translations). Everything the co-op patch did for
+  0.9.5.2 is carried over: your partners' kills and damage count as yours,
+  grudges are per player (a nemesis hunts the partner he hates most), news
+  and grudge notices reach the right player, ambushes plan for a far partner,
+  and partners and the copies of the host's people are never named or turned
+  into nemeses.
+- The new 0.9.6 parts follow the same rule: a townsperson killed by your
+  partner counts as killed by you (their family hears), and your partners'
+  characters don't get names, life stories or families of their own.
+
+## 0.4.3 (27 Oct 2026) - for enRage 0.9.5.2; needs RDR2 Co-op 0.7.62 or 0.9.0-beta.8.4 or newer for the full fix
 - Pressing Insert (reload) no longer leaves the old enRage running in the
   background with the mod's own loader: enRage's file-saving thread now ends
   when enRage stops (anything still being saved is finished first).

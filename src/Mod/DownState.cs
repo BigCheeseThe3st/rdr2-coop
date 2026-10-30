@@ -21,8 +21,9 @@ namespace RDR2Coop.Mod
         const int BringBackForMs = 5000;  // a death we can't undo in this long is let through (never stuck dead)
 
         public bool IsDown { get; private set; }
-        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1;
-        bool _wasDead, _returnAfterDeath, _held, _guarding;
+        long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1;
+        const int ClearScreenMs = 30000;   // after bringing us back from the game's death: its respawn screen is lifted for this long
+        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged;
 
         static Ped Me => Game.Player.Character;
         static int Health => ENTITY.GET_ENTITY_HEALTH(Me.Handle);
@@ -82,6 +83,7 @@ namespace RDR2Coop.Mod
             }
             _deadSince = -1;
             if (_wasDead) { _wasDead = false; _returnAfterDeath = following; _calmSince = -1; }
+            if (now < _clearScreenUntil) ClearDeathScreen();
 
             if (!IsDown)
             {
@@ -157,9 +159,23 @@ namespace RDR2Coop.Mod
             if (me.IsDead) return;   // not yet: tried again next tick (BringBackForMs)
             if (CAM.IS_SCREEN_FADED_OUT() || CAM.IS_SCREEN_FADING_OUT()) CAM.DO_SCREEN_FADE_IN(500);
             GRAPHICS.ANIMPOSTFX_STOP_ALL();   // the death screen's colour effect
+            _clearScreenUntil = now + ClearScreenMs; _clearLogged = false;
             _deadSince = -1;
             IsDown = false;
             GoDown($"the game killed us (cause {cause:X8}): brought back where we fell instead");
+        }
+
+        // The game's death sequence keeps going after we're brought back: it faded to its black respawn screen with
+        // the spinning revolver and stayed there, revived or not, and partners saw "in a cutscene" and couldn't revive
+        // (a tester's host, 28 Oct). We're alive: no respawn screen.
+        void ClearDeathScreen()
+        {
+            bool loading = DLC.GET_IS_LOADING_SCREEN_ACTIVE(), spinner = HUD.BUSYSPINNER_IS_ON();
+            if (!loading && !spinner && !CAM.IS_SCREEN_FADED_OUT() && !CAM.IS_SCREEN_FADING_OUT()) return;
+            if (loading) SCRIPTS.SHUTDOWN_LOADING_SCREEN();
+            if (spinner) HUD.BUSYSPINNER_OFF();
+            CAM.DO_SCREEN_FADE_IN(500);
+            if (!_clearLogged) { _clearLogged = true; CoopScript.Log($"down: the game's respawn screen came up after it brought us back (loading screen {loading}, spinner {spinner}): lifted"); }
         }
 
         // Whether the get-up timer is paused, logged when that changes.

@@ -58,6 +58,9 @@ if [ -n "$NET9" ]; then
   dotnet build api/Compat/System.Windows.Forms/System.Windows.Forms.csproj -c Release -nologo -v q
   cp api/Compat/ScriptHookRDRNetAPI/bin/Release/net9.0/ScriptHookRDRNetAPI.dll api/Compat/System.Windows.Forms/bin/Release/net9.0/System.Windows.Forms.dll dist/RDR2Coop/
   cp "${NUGET_PACKAGES:-$HOME/.nuget/packages}"/system.diagnostics.eventlog/9.0.0/runtimes/win/lib/net9.0/System.Diagnostics.EventLog*.dll dist/RDR2Coop/
+  # enRage's saves need System.Security.Permissions (and it, System.Windows.Extensions), which .NET 9 doesn't carry.
+  cp "${NUGET_PACKAGES:-$HOME/.nuget/packages}"/system.security.permissions/9.0.0/lib/net9.0/System.Security.Permissions.dll dist/RDR2Coop/
+  cp "${NUGET_PACKAGES:-$HOME/.nuget/packages}"/system.windows.extensions/9.0.0/runtimes/win/lib/net9.0/System.Windows.Extensions.dll dist/RDR2Coop/
 fi
 wait $MONO || { cat build/mono-tests.log; exit 1; }
 tail -n 1 build/mono-tests.log
