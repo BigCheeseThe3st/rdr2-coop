@@ -6,9 +6,9 @@
 
 Puts in the game folder: ScriptHookRDR2 (downloaded if missing) and the co-op
 mod with its own .NET (RDR2Coop.asi + RDR2Coop/); no .NET Framework needed.
-A host who uses enRage gets the ScriptHookRDR2DotNet version of the mod instead
-(that one needs ScriptHookRDR2DotNet and .NET 4.8 in the Proton prefix) with the
-unofficial co-op patch applied to their own copy of enRage.
+Everyone gets that loader (31 Oct): it runs enRage too, so a host who uses enRage
+gets the unofficial co-op patch applied to their own copy of enRage, and
+ScriptHookRDR2DotNet is switched off (ScriptHookRDRDotNet.asi.off).
 """
 import getpass
 import glob
@@ -18,7 +18,6 @@ import re
 import shutil
 import struct
 import zlib
-import subprocess
 import sys
 import tempfile
 import urllib.request
@@ -34,8 +33,6 @@ SHR_PAGE = "https://www.dev-c.com/rdr2/scripthookrdr2/"
 # Runs inside the game, so only the exact file we tested is installed
 # (same checksum from two separate downloads, 21 and 23 Oct 2026).
 SHR_SHA256 = "a3be69dcd33e6cffe316d7c17ee5c4f7fcedf0c7b7fa8cf68177398e6594c39f"
-SHDN_URL = "https://github.com/Halen84/ScriptHookRDR2DotNet-V2/releases/download/2.2.0/ScriptHookRDR2DotNet-V2.rar"
-SHDN_SHA256 = "61682e6236618849fa96a5f4a305681c838120158857db57d72da5311f7e97f8"
 
 
 PATCH_DIR = HERE / "enrage-coop-patch"
@@ -97,15 +94,6 @@ def find_games():
     return [lib for lib in libraries() if (lib / "steamapps/common/Red Dead Redemption 2/RDR2.exe").is_file()]
 
 
-def dotnet48_ready(prefix):
-    """Whether Wine's registry in the game's prefix says .NET 4.8 is installed."""
-    reg = prefix / "pfx/system.reg"
-    try:
-        text = reg.read_text(errors="replace")
-    except OSError:
-        return False
-    m = re.search(r'\[Software\\\\Microsoft\\\\NET Framework Setup\\\\NDP\\\\v4\\\\Full\][^\[]*?"Release"=dword:([0-9a-fA-F]+)', text)
-    return bool(m) and int(m.group(1), 16) >= DOTNET48_RELEASE
 
 
 # ---------------------------------------------------------------- files
@@ -198,18 +186,6 @@ def install_scripthook(game):
         say("  ScriptHookRDR2 1.0.1491.17 installed")
 
 
-def install_shdn(game):
-    """ScriptHookRDR2DotNet V2: only the enRage (.NET 4.8) version of the mod needs it."""
-    if not (game / "ScriptHookRDRDotNet.asi").is_file():
-        # From its official GitHub release (zlib licence); the release is a .rar.
-        if not shutil.which("bsdtar"):
-            fail("bsdtar is needed to unpack ScriptHookRDR2DotNet: sudo pacman -S libarchive (or your distro's package)")
-        rar = download(SHDN_URL, CACHE / "ScriptHookRDR2DotNet-V2-2.2.0.rar", SHDN_SHA256)
-        with tempfile.TemporaryDirectory() as t:
-            subprocess.run(["bsdtar", "-xf", str(rar), "-C", t], check=True)
-            for name in ("ScriptHookRDRDotNet.asi", "ScriptHookRDRDotNet.ini", "ScriptHookRDRNetAPI.dll"):
-                shutil.copy2(Path(t) / name, game / name)
-        say("  ScriptHookRDR2DotNet V2 2.2.0 installed")
 
 
 def install_coop(game, settings):
@@ -219,26 +195,28 @@ def install_coop(game, settings):
     if HERE == game.resolve():   # unpacked straight into the game folder: the files are already in place (deleting first would destroy them)
         say("  RDR2Coop.asi and RDR2Coop/ are already in the game folder")
     else:
-        shutil.rmtree(game / "RDR2Coop", ignore_errors=True)   # a clean copy, so an older runtime doesn't pile up beside the new one
-        shutil.copytree(HERE / "RDR2Coop", game / "RDR2Coop")
+        clear_keeping_backup(game / "RDR2Coop")   # a clean copy, so an older runtime doesn't pile up beside the new one
+        shutil.copytree(HERE / "RDR2Coop", game / "RDR2Coop", dirs_exist_ok=True)
         shutil.copy2(HERE / "RDR2Coop.asi", game / "RDR2Coop.asi")
     old = game / "scripts/RDR2Coop.dll"
     if old.is_file():   # the ScriptHookRDR2DotNet version: two copies would both join the room and fight
         old.unlink()
         say("  old ScriptHookRDR2DotNet copy of the mod (scripts/RDR2Coop.dll) removed; your settings are kept")
+    shdn = game / "ScriptHookRDRDotNet.asi"
+    if shdn.is_file():   # the loader runs enRage itself, with the co-op link; ScriptHookRDR2DotNet would take enRage from it
+        shdn.replace(game / "ScriptHookRDRDotNet.asi.off")
+        say("  ScriptHookRDR2DotNet switched off (ScriptHookRDRDotNet.asi.off): the mod's loader runs enRage itself")
     write_ini(game, HERE / "scripts/RDR2Coop.ini", settings)
 
 
-def install_coop_shdn(game, settings):
-    """The ScriptHookRDR2DotNet (.NET 4.8) version, for an enRage host: the enRage link only works there."""
-    src = HERE / "shdn/scripts"
-    if not (src / "RDR2Coop.dll").is_file():
-        fail("The ScriptHookRDR2DotNet version of the mod isn't here: unpack the optional RDR2-Coop-ScriptHookDotNet download into this same folder, then run this again.")
-    (game / "RDR2Coop.asi").unlink(missing_ok=True)   # only one copy of the mod may run
-    shutil.rmtree(game / "RDR2Coop", ignore_errors=True)
-    (game / "scripts").mkdir(exist_ok=True)
-    shutil.copy2(src / "RDR2Coop.dll", game / "scripts/RDR2Coop.dll")
-    write_ini(game, src / "RDR2Coop.ini", settings)
+def clear_keeping_backup(folder):
+    """Empties the mod's folder except backup/ (the player's save backups and their own story's checkpoint)."""
+    if folder.is_dir():
+        for child in folder.iterdir():
+            if child.name != "backup":
+                shutil.rmtree(child) if child.is_dir() and not child.is_symlink() else child.unlink()
+
+
 
 
 def write_ini(game, default_ini, settings):
@@ -350,6 +328,10 @@ def uninstall(game):
     if before.is_file():
         shutil.move(before, scripts / "NemesisMod.dll")
         say("  your previous enRage version put back")
+    shdn_off = game / "ScriptHookRDRDotNet.asi.off"
+    if shdn_off.is_file() and not (game / "ScriptHookRDRDotNet.asi").exists():
+        shdn_off.replace(game / "ScriptHookRDRDotNet.asi")
+        say("  ScriptHookRDR2DotNet switched back on")
     say("  co-op mod removed (ScriptHookRDR2 and ScriptHookRDR2DotNet are left for your other mods)")
 
 
@@ -401,28 +383,12 @@ def main():
                 "Public": "Yes" if public else "No"}
     scripts = game / "scripts"
     nem = scripts / "NemesisMod.dll"
-    # The enRage link only works in the ScriptHookRDR2DotNet version of the mod, so that question comes first.
     use_enrage = host and PATCH_DIR.is_dir() and yes(   # the optional enRage co-op patch download is unpacked here
-        "Install enRage (Nexus mod 10967) with the unofficial co-op patch? This uses the ScriptHookRDR2DotNet version of co-op, "
-        "which needs .NET Framework 4.8 in the game's Proton prefix (10-20 minutes to build if missing)", default=nem.is_file())
+        "Install enRage (Nexus mod 10967) with the unofficial co-op patch?", default=nem.is_file())
 
     say("\nInstalling:")
     install_scripthook(game)
-    if use_enrage:
-        prefix = lib / "steamapps/compatdata" / APP_ID
-        if not dotnet48_ready(prefix):
-            say("The game's Proton prefix doesn't have .NET Framework 4.8 yet (the ScriptHookRDR2DotNet version needs it).")
-            if prefix.exists():
-                fail(f"Move {prefix} away (it's the game's Wine folder; it is rebuilt), then run this again.\n"
-                     "Your story saves are in Rockstar's cloud / the Profiles folder in there: back that up first.")
-            if yes("Build it now with prepare-prefix.sh (10-20 minutes; needs GE-Proton10-34 and Proton Experimental; winetricks is fetched if missing)?"):
-                subprocess.run([str(HERE / "prepare-prefix.sh"), str(lib)], check=True)
-            else:
-                fail("Run ./prepare-prefix.sh <steam library> before playing, then this again.")
-        install_shdn(game)
-        install_coop_shdn(game, settings)
-    else:
-        install_coop(game, settings)
+    install_coop(game, settings)
     if run_server:
         say(f"  The server starts with your game and opens UDP {port} on your router by itself (UPnP);\n"
             "  F10 in game shows the address to give your friends. No UPnP on your router: forward UDP\n"

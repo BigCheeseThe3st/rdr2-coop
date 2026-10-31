@@ -2,7 +2,7 @@
 
 For enRage 0.9.6 (Nexus mod 10967). Needs RDR2 Co-op; host only. For enRage 0.9.5.2, use patch 0.4.3; for 0.9.5.1, patch 0.4.1.
 
-## 0.5.0 (30 Oct 2026) - for enRage 0.9.6; needs RDR2 Co-op 0.7.66-rc.2 or 0.9.0-beta.8.4.3 or newer
+## 0.5.0 (30 Oct 2026) - for enRage 0.9.6; needs RDR2 Co-op 0.7.66-rc.2 or newer
 - Works with enRage 0.9.6 (life stories, townsfolk you can talk to,
   families, newspapers, translations). Everything the co-op patch did for
   0.9.5.2 is carried over: your partners' kills and damage count as yours,

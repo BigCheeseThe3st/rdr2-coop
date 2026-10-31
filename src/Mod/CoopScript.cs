@@ -47,7 +47,6 @@ namespace RDR2Coop.Mod
             public int AppliedMountHorse;
         }
 
-        const int StaleWorldMs = 3000;    // bubbles: a linked game's world older than this is dropped
         const float PuppetRange = 400f;   // further than this: no puppet (the area isn't loaded)
         const ushort MountLookId = 0;     // EntityLook id meaning "the sender's own horse" (NPC ids start at 1)
         // The online room list (list-server/). ListServer= in the ini overrides; "off" turns it off.
@@ -70,30 +69,17 @@ namespace RDR2Coop.Mod
         bool _upnpOn, _public;
         OwnedWorld _owned;
         MirrorWorld _mirror;
-        // Bubbles ([Gameplay] Bubbles, src/Net/Bubbles.cs): one mirror per linked player, our own world always on.
-        readonly Dictionary<byte, MirrorWorld> _bubbleMirrors = new Dictionary<byte, MirrorWorld>();
-        readonly HashSet<byte> _linked = new HashSet<byte>();
-        bool _bubbleMode;
-        readonly DoublesSync _doubles = new DoublesSync();
-        readonly BubbleCrowd _crowd = new BubbleCrowd();
         byte _owner;                 // whose game runs our area (our own id when ours)
         string _status = "";
         uint _appearAs;
-        Keys _teleportKey, _statusKey, _spawnWagonKey, _spawnTrainKey, _partyKey, _clockKey, _pokerFoldKey, _pokerDeckKey, _pokerAwayKey;
-        int _clockHour = 13;
+        Keys _teleportKey, _statusKey, _spawnWagonKey, _spawnTrainKey, _partyKey;
         readonly MissionParty _party = new MissionParty();
         readonly DownState _down = new DownState();
         readonly RideDouble _ride = new RideDouble();   // sitting behind a partner on their horse
         readonly TableGames _tables = new TableGames();   // poker, blackjack...: co-op stands back while we play
         Keys _reviveKey, _travelKey, _nemesisKey;
-        readonly CutsceneTest _cutsceneTest = new CutsceneTest();
-        readonly SoftsaveProbe _softsave = new SoftsaveProbe();
-        readonly Cutscenes _cutscenes = new Cutscenes();
-        readonly MissionRoles _missionRoles = new MissionRoles();
-        HostWorld _hostWorld;
         bool _travelPending;
         readonly MissionProbe _missionProbe = new MissionProbe();
-        MissionRecorder _missionRec;   // beta logs on: the memory of game scripts that start while we play, for mapping them (Net/MissionTape.cs)
         readonly MissionBlock _missionBlock = new MissionBlock();
         readonly MissionAssist _assist = new MissionAssist();
         readonly Chat _chat = new Chat();
@@ -106,7 +92,6 @@ namespace RDR2Coop.Mod
         readonly Pings _pings = new Pings(); readonly MoneyGifts _gifts = new MoneyGifts();   // "look here" pings, giving a partner money
         readonly EmoteMenu _emotes = new EmoteMenu();   // wave, point, laugh...: partners see them
         readonly Tables _modTables = new Tables();   // the mod's own card and dice tables (poker, blackjack...)
-        readonly GamePoker _gamePoker = new GamePoker();   // guests in card players' seats at the game's own poker
         readonly Waypoints _waypoints = new Waypoints();
         readonly Explosions _explosions = new Explosions();
         readonly LawSync _law = new LawSync();
@@ -116,7 +101,6 @@ namespace RDR2Coop.Mod
         Vector3 _travelTo;
         string _travelName = "";
         long _lastRevivePrompt;
-        bool _enrageNoticeShown;
         long _lastLookCheck;
         readonly LookSender _lookSender = new LookSender();
         int _sendEveryMs = 33, _smoothingMs = 70;
@@ -172,17 +156,6 @@ namespace RDR2Coop.Mod
             _statusKey = ParseKey(ini.Get("Keys", "ShowStatus", "F10"), Keys.F10);
             _spawnWagonKey = ParseKey(ini.Get("Keys", "SpawnWagon", ""), Keys.None);   // testing aids: off unless set in the ini
             _spawnTrainKey = ParseKey(ini.Get("Keys", "SpawnTrain", ""), Keys.None);
-            _clockKey = ParseKey(ini.Get("Keys", "SetClock", ""), Keys.None);
-            _pokerFoldKey = ParseKey(ini.Get("Keys", "PokerForceFold", ""), Keys.None);
-            _pokerDeckKey = ParseKey(ini.Get("Keys", "PokerDeckTest", ""), Keys.None);
-            _pokerAwayKey = ParseKey(ini.Get("Keys", "PokerSendAway", ""), Keys.None);
-            _cutsceneTest.Key = ParseKey(ini.Get("Keys", "CutsceneTest", ""), Keys.None);   // testing: plays [Testing] CutsceneLabel on its own (Mod/CutsceneTest.cs)
-            _cutsceneTest.Configure(ini);
-            _softsave.Key = ParseKey(ini.Get("Keys", "SoftsaveProbe", ""), Keys.None);
-            _softsave.DumpKey = ParseKey(ini.Get("Keys", "SoftsaveDump", ""), Keys.None);   // testing: this world's save globals to scripts\RDR2Coop.worlddump.bin
-            _softsave.InjectKey = ParseKey(ini.Get("Keys", "SoftsaveInject", ""), Keys.None);   // testing: that dump's world into this game, our own player data kept   // testing: the game's menu-less restore, round trip (Mod/SoftsaveProbe.cs)   // testing: a random card player at the game's poker leaves after this hand   // testing: the next hand at the game's poker comes from the mod's deck   // testing: the next card player to act at the game's poker folds
-            PokerWatch.On = ini.Get("Testing", "PokerTrace", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase);   // records the game's own poker (scripts\RDR2Coop.poker.log)   // testing aid: the hour [Testing] ClockHour= says (camp poker: 11-16 or 21-01)
-            if (!int.TryParse(ini.Get("Testing", "ClockHour", "13"), out _clockHour) || _clockHour < 0 || _clockHour > 23) _clockHour = 13;
             _partyKey = ParseKey(ini.Get("Keys", "MissionParty", ""), Keys.None);   // F8 is ScriptHookRDR2DotNet's console: the co-op menu has it
             _reviveKey = ParseKey(ini.Get("Keys", "Revive", "F7"), Keys.F7);
             _chat.Key = ParseKey(ini.Get("Keys", "Chat", "T"), Keys.T);   // T: free in story mode (Red Dead Online's chat key)
@@ -198,32 +171,29 @@ namespace RDR2Coop.Mod
                                          () => _link != null && _link.IAmHost ? (_party.IsHosting ? "Mission party: on (switch off)" : "Mission party: off (switch on)") : null,
                                          () => _party.Toggle(_link), _browserKey != Keys.None ? _browserKey : _statusKey,
                                          () => _updater?.MenuLabel, () => _updater?.Begin());
-            _spectate.Key = _teleportKey; ServerBrowser.Extras.Add(new MenuExtra(() => _spectate.MenuLabel, () => _spectate.MenuAct(), help: () => "Watch a partner through their camera while you're down or dead."));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _emotes.MenuLabel(_link), () => _emotes.Open(), help: () => "Wave, tip your hat, point, clap and more. Your partners see it."));
-            // Not while we're in the host's story as a guest: our own story comes back through this version's leave.
-            ServerBrowser.Extras.Add(new MenuExtra(() => _hostWorld?.InHostStory == true ? null : _updater?.SwitchLabel, () => { if (_hostWorld?.InHostStory != true) _updater?.Switch(); }, MenuExtra.More, () => _updater?.SwitchHelp));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _hostWorld?.InHostStory == true ? null : _updater?.RcLabel, () => { if (_hostWorld?.InHostStory != true) _updater?.SwitchRc(); }, MenuExtra.More, () => _updater?.RcHelp));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _logs?.MenuLabel, () => _logs?.Toggle(), MenuExtra.More, () => "Sends your co-op logs to the developer so bugs get found and fixed sooner. Addresses and folders are removed first. Enter switches it on or off."));
+            ServerBrowser.Extras.Add(new MenuExtra(() => Extras.Scoreboard && _link != null ? (_scoreboard.On ? "Hide the scoreboard" : "Scoreboard") : null, () => _scoreboard.Toggle()));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _contests.MenuLabel(_link), () => _contests.MenuAct(_link)));
+            _spectate.Key = _teleportKey; ServerBrowser.Extras.Add(new MenuExtra(() => _spectate.MenuLabel, () => _spectate.MenuAct()));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _emotes.MenuLabel(_link), () => _emotes.Open()));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _logs?.MenuLabel, () => _logs?.Toggle()));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _updater?.SwitchLabel, () => _updater?.Switch()));   // try the beta (and back again from it)
+            ServerBrowser.Extras.Add(new MenuExtra(() => _updater?.RcLabel, () => _updater?.SwitchRc()));   // the fixes beta (the next stable's small fixes early), and back
             Contests.Register("race", () => new Race(), Races.Setup, Races.View);
             Contests.Register("hunting", () => new Hunting(), Hunts.Setup, Hunts.View);
             Contests.Register("shooting", () => new Shooting(), Shootings.Setup, Shootings.View);
             Func<byte, int> standIn = id => _remotes.TryGetValue(id, out var sr) && sr.Puppet != null && sr.Puppet.Exists ? sr.Puppet.Handle : 0;   // a partner's stand-in here (0: none), for the duel to aim at
             Contests.Register("duel", () => new Duel(), done => Duels.Setup(done, _link, standIn), (c, now) => Duels.View(c, now, standIn));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _pings.MenuLabel(_link), () => _pings.Request(), help: () => "Marks the spot you're looking at, so your partners can see where you mean."));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _gifts.MenuLabel(_link), () => _gifts.MenuAct(_link), help: () => "Give some of your money to a partner, up to $10,000 at a time."));
-            ServerBrowser.Extras.Add(new MenuExtra(() => _gamePoker.MenuLabel(_link), () => _gamePoker.MenuAct(_link), help: () => "Take a card player's seat at the host's poker table: the game deals you in and you play their chips."));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _pings.MenuLabel(_link), () => _pings.Request()));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _gifts.MenuLabel(_link), () => _gifts.MenuAct(_link)));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _modTables.JoinLabel(_link), () => _modTables.JoinAct(_link)));
+            ServerBrowser.Extras.Add(new MenuExtra(() => _modTables.MenuLabel(_link), () => _modTables.MenuAct(_link)));
             if (ini.Get("Games", "HighCard", "No").StartsWith("y", StringComparison.OrdinalIgnoreCase)) Tables.Register("highcard", () => new HighCard());   // the tables' sample game
             Tables.Register("dice", () => new LiarsDice());
             Tables.Register("dominoes", () => new Dominoes());
             Tables.Register("blackjack", () => new Blackjack());
             Tables.Register("poker", () => new Poker());
             ServerBrowser.Extras.Add(new MenuExtra(() => "Support the mod (every tip goes to wildlife conservation)",
-                () => Say("Co-op is free. Tips at ko-fi.com/rdr2_coop go, every one, to the Wildlife Conservation Society. Thank you!"), MenuExtra.More,
-                () => "The mod is free. Every tip at ko-fi.com/rdr2_coop goes to the Wildlife Conservation Society."));
-            ServerBrowser.Status = () => _link == null ? null
-                : _link.State != LinkState.Connected ? "Not connected (" + _link.State + ")"
-                : string.Join(", ", _link.Roster.Select(p => p.Name + (p.Role == PlayerRole.Host ? " (host)" : "")))
-                  + "    this area: " + (_owner == 0 ? "-" : _owner == _link.MyId ? "your game" : _link.NameOf(_owner) + "'s game");
+                () => Say("Co-op is free. Tips at ko-fi.com/rdr2_coop go, every one, to the Wildlife Conservation Society. Thank you!")));
             string dll = Path.Combine(BaseDirectory, "RDR2Coop.dll");   // where ScriptHookRDR2DotNet loaded us from
             if (!File.Exists(dll)) dll = Path.Combine(BaseDirectory, "scripts", "RDR2Coop.dll");
             _updater = new Updater(dll,
@@ -252,14 +222,9 @@ namespace RDR2Coop.Mod
             if (password.Length == 0) Log("no Password set in RDR2Coop.ini; the server will refuse us");
 
             _owned = new OwnedWorld(worldHz);
-            _hostWorld = new HostWorld(id => _remotes.TryGetValue(id, out var hr) && hr.HasLast ? hr.Last : (PlayerState?)null);
-            _hostWorld.AtStart(_clock.ElapsedMilliseconds);
             _mirror = new MirrorWorld(_smoothingMs);
             _name = name;
             _logs = new LogSender(iniPath, ini, name, BuildInfo.Version, _clock.ElapsedMilliseconds, () => _clock.ElapsedMilliseconds);
-            _missionRec = new MissionRecorder(_logs.On && !ini.Get("Testing", "RecordMissions", "Yes").Trim().Equals("No", StringComparison.OrdinalIgnoreCase),
-                                              ini.Get("Testing", "KeepRecordings", "No").Trim().Equals("Yes", StringComparison.OrdinalIgnoreCase),
-                                              ini.Get("Testing", "RecordAllScripts", "No").Trim().Equals("Yes", StringComparison.OrdinalIgnoreCase));
             _preferHost = preferHost;
             _password = password;
             if (!runServer && !Resolves(server))
@@ -338,8 +303,7 @@ namespace RDR2Coop.Mod
             };
             _link.WorldReceived += (from, w, at) =>
             {
-                if (_bubbleMode) { if (_linked.Contains(from)) BubbleMirror(from).Push(w, at); }
-                else if (from == _owner && _owner != _link.MyId) _mirror.Push(w, at);
+                if (from == _owner && _owner != _link.MyId) _mirror.Push(w, at);
             };
             _link.HitReceived += OnHit;
             _link.ObjectivesReceived += (from, list) => _assist.OnObjectives(from, list, _link);   // a 0.7.x host's; ours come as a MissionStep notice
@@ -353,14 +317,10 @@ namespace RDR2Coop.Mod
                 if (n.Kind == NoticeKind.Door) { _doors.OnNotice(from, n.Text, _link, _owner, _remotes.TryGetValue(from, out var dr) && dr.HasLast ? dr.Last : (PlayerState?)null, _clock.ElapsedMilliseconds); return; }
                 if (n.Kind == NoticeKind.MissionStep) { _assist.OnObjectives(from, MissionMarkers.Parse(n.Text, MissionAssist.DefaultRadius), _link); return; }   // the host's mission markers
                 if (n.Kind == NoticeKind.Score) { _scoreboard.OnNotice(from, n.Text, _link, _owner, _clock.ElapsedMilliseconds); return; }
-                if (n.Kind == NoticeKind.EntityKeys) { _doubles.OnNotice(from, n.Text); return; }
-                if (n.Kind == NoticeKind.WorldShare) { _hostWorld.OnNotice(from, n.Text, _link, _clock.ElapsedMilliseconds); return; }
-                if (n.Kind == NoticeKind.Cutscene) { _cutscenes.OnNotice(from, n.Text, _link, _clock.ElapsedMilliseconds); return; }
                 if (n.Kind == NoticeKind.Ping) { _pings.OnNotice(from, n.Text, _link, _clock.ElapsedMilliseconds); return; }
                 if (n.Kind == NoticeKind.Money) { _gifts.OnNotice(from, n.Text, _link, _clock.ElapsedMilliseconds); return; }
                 if (n.Kind == NoticeKind.Emote) { _emotes.OnNotice(from, n.Text, _link, _clock.ElapsedMilliseconds); return; }
                 if (n.Kind == NoticeKind.Contest) { _contests.OnNotice(from, n.Text, _link, id => _remotes.TryGetValue(id, out var cr) && cr.HasLast ? cr.Last.Position : (Vec3?)null, _clock.ElapsedMilliseconds); return; }
-                if (n.Kind == NoticeKind.GamePoker) { _gamePoker.OnNotice(from, n.Text, id => _remotes.TryGetValue(id, out var gp) && gp.HasLast ? gp.Last.Position : (Vec3?)null); return; }
                 if (n.Kind == NoticeKind.Table) { _modTables.OnNotice(from, n.Text, _link, id => _remotes.TryGetValue(id, out var tr) && tr.HasLast ? tr.Last.Position : (Vec3?)null, _clock.ElapsedMilliseconds); return; }
                 // One receiver for every activity: the tables seat them, and the line shows once (not at each table game's 5 s repeat).
                 if (n.Kind == NoticeKind.Activity) { if (_tables.OnNotice(from, n.Text, _clock.ElapsedMilliseconds)) Activities.OnNotice(from, _link.NameOf(from), n.Text, _clock.ElapsedMilliseconds); return; }
@@ -368,14 +328,13 @@ namespace RDR2Coop.Mod
             };
             _link.ActionReceived += (from, a) =>
             {
-                if (_remotes.TryGetValue(from, out var r) && r.HasLast && (_bubbleMode ? _linked.Contains(from) : _owner == _link.MyId && r.Last.Following == _link.MyId))
+                if (_owner == _link.MyId && _remotes.TryGetValue(from, out var r) && r.HasLast && r.Last.Following == _link.MyId)
                     _owned.ApplyAction(a, r.Puppet);
             };
             _link.EntityLookReceived += (from, id, a) =>
             {
                 if (id == MountLookId) { var r = RemoteFor(from); r.MountLook = a; r.HasMountLook = true; return; }
-                if (_bubbleMode) { if (_linked.Contains(from)) BubbleMirror(from).OnLook(id, a); }
-                else if (from == _owner && _owner != _link.MyId) _mirror.OnLook(id, a);
+                if (from == _owner && _owner != _link.MyId) _mirror.OnLook(id, a);
             };
             _link.AppearanceReceived += (from, a) =>
             {
@@ -425,13 +384,11 @@ namespace RDR2Coop.Mod
             _pings.Clear(); _gifts.Clear();   // gifts nobody answered come back
             _emotes.Clear();
             _modTables.Clear(_link);
-            _gamePoker.Clear();
             AppDomain.CurrentDomain.SetData("rdr2coop.puppets", null);   // stale handles could be reused by new peds
             AppDomain.CurrentDomain.SetData("rdr2coop.copies", null);
             AppDomain.CurrentDomain.SetData("rdr2coop.puppetNames", null);
             _sharedPuppets = new int[0]; _sharedCopies = new int[0]; _sharedNames = new string[0];
             _mirror.Clear();
-            ClearBubbleMirrors();
             _owner = 0;
         }
 
@@ -510,7 +467,6 @@ namespace RDR2Coop.Mod
             var ids = new HashSet<byte>(_link.Roster.Select(e => e.Id));
             foreach (var id in _remotes.Keys.Where(id => !ids.Contains(id)).ToList())
             {
-                _hostWorld?.OnRosterLeft(id);
                 _remotes[id].Puppet?.Delete();
                 Blips.Remove(ref _remotes[id].FarBlip);
                 _remotes.Remove(id);
@@ -521,7 +477,6 @@ namespace RDR2Coop.Mod
             _contests.OnRoster(ids, _link, _clock.ElapsedMilliseconds);
             _pings.OnRoster(ids);
             _modTables.OnRoster(ids, _link, _clock.ElapsedMilliseconds);
-            _gamePoker.OnRoster(ids);
             string who = string.Join(", ", _link.Roster.Select(e => e.Name + (e.Role == PlayerRole.Host ? " (host)" : "")));
             Say("Co-op: " + who);
             Log("roster: " + who);
@@ -535,7 +490,8 @@ namespace RDR2Coop.Mod
         void OnTick(object sender, EventArgs e)
         {
             try { _logs?.Tick(_clock.ElapsedMilliseconds); TickBody(); }
-            catch (Exception ex) { TickFailed(ex); }
+            // The loader's abort (the mod closing) goes on to the loader, which stops the script: not an error (Doc, Kairushi 30 Oct).
+            catch (Exception ex) when (ex.GetType().Name != "ScriptAbortedException") { TickFailed(ex); }
         }
 
         string _lastError = "";
@@ -569,11 +525,8 @@ namespace RDR2Coop.Mod
                 Log($"tick gap {gap} ms (pause menu, alt-tab or loading)");
                 foreach (var r in _remotes.Values) r.HeardMs = now;
                 _mirror.AfterGap();
-                foreach (var bm in _bubbleMirrors.Values) bm.AfterGap();
             }
             _missionProbe.Tick(now);
-            _missionRoles.Tick(now);
-            _missionRec?.Tick(now, h => _remotes.Values.Any(r => r.Puppet != null && r.Puppet.Handle == h) ? "partner" : null);
             _missionBlock.Tick(!Sync.OwnMissionsAsGuest && _link != null && _link.State == LinkState.Connected && !_link.IAmHost, now);
             OwnMissionWarning(now);
             _tables.Tick(_link, now);
@@ -582,6 +535,9 @@ namespace RDR2Coop.Mod
             if (note != null) Say(note);
             var meNow = Game.Player.Character;
             if (meNow != null && meNow.Exists()) { string un = _updater?.TakeNote(); if (un != null) Say(un); }   // not over a loading screen
+            if (meNow != null && meNow.Exists() && !PickList.IsOpen && _updater?.TakeMoved() == true)   // the new loader is in place
+                PickList.Open("Co-op: restart the game", new List<(string, Action)> { ("OK, I'll restart the game", null) }, null,
+                              "Co-op moved to its new loader. Close the game and start it again (Insert isn't enough). Settings stay.", 5000);
             if (_byNameNoteLeft > 0 && meNow != null && meNow.Exists() && now > 15000 && now - _byNameNoteMs > 6000 && (_byNameNoteLeft < 3 || ENTITY.GET_ENTITY_SPEED(meNow.Handle) > 0.5f)) { _byNameNoteMs = now; _byNameNoteLeft--; Say(_byNameNote); }   // the game hides the text while you stand idle after loading: from the first move
             if (PickList.IsOpen) PickList.Tick();
             if (_browser.IsOpen)
@@ -590,20 +546,9 @@ namespace RDR2Coop.Mod
                 if (room != null) SwitchTo(room, pw);
             }
             _chat.Tick(_link, now);
-            PokerWatch.Tick(now);
-            _cutsceneTest.Tick(now);
-            _softsave.Tick(now);
-            PokerWatch.FrameTick();
-            if (!_enrageNoticeShown && now > 20000)   // once, when the game is up: the loader found an enRage the co-op patch doesn't fit
-            {
-                _enrageNoticeShown = true;
-                if (AppDomain.CurrentDomain.GetData("rdr2coop.enrageNotice") is string notice) { Say(notice); Log(notice); }
-            }
             Trace("tick: poll");
             _link.Poll(now);
             if (gap > 2000) _explosions.Clear();   // partners' blasts kept while we were frozen: long over, not into the game now
-            Trace("tick: host world");
-            _hostWorld.Tick(_link, now);   // every frame, connected or not: a dropped link takes the guest's own story back
             if (_link.State != LinkState.Connected) return;
 
             var me = Game.Player.Character;
@@ -622,35 +567,10 @@ namespace RDR2Coop.Mod
                                                                                 && !((kv.Value.Last.Flags & (StateFlags.InCutscene | StateFlags.ScreenFaded)) != 0 && now - kv.Value.HeardMs < Authority.CutsceneAwayMs) };
             byte owner = Authority.Pick(myId, myPos, _link.HostId, others, _owner == 0 ? myId : _owner);
             if (Activities.Busy && !Tables.Seated) owner = myId;   // in a mini-game or activity our own game runs our area (a mod table keeps the shared world)
-
-            // Bubbles: our own world always runs; linked players' worlds show next to it. The old area owner stays only
-            // as the lead (trains, doors, law, respawn) and for the host's story missions (strict follow, as before).
-            bool hostInMission = _remotes.TryGetValue(_link.HostId, out var hm) && hm.HasLast && (hm.Last.Flags & StateFlags.InMission) != 0;
-            bool nearHost = owner == _link.HostId;   // the host's game runs our area (Authority's own distance), as strict follow always meant
-            // Every player in the session has to have it on (StateFlags.Bubbles), or the old shared area runs for everyone
-            // (someone still joining, with no state yet, doesn't flip it off for a frame).
-            bool everyone = _link.Roster.Where(p => p.Id != myId).All(p => !_remotes.TryGetValue(p.Id, out var br) || !br.HasLast || (br.Last.Flags & StateFlags.Bubbles) != 0);
-            bool bubble = Sync.Bubbles && everyone && !Bubbles.StrictFollow(_link.IAmHost, _party.IsMember, hostInMission, nearHost);
-            if (bubble != _bubbleMode)
-            {
-                Log(bubble ? "bubbles: on (our own world runs, linked players' worlds show alongside)"
-                    : !Sync.Bubbles ? "bubbles: off" : !everyone ? "bubbles: off for now (not everyone in the session has [Gameplay] Bubbles=Yes)" : "bubbles: off for now (strict follow: the host's story mission)");
-                if (bubble) _mirror.Clear(); else ClearBubbleMirrors();
-                _bubbleMode = bubble;
-                MirrorWorld.Bubbles = bubble;
-            }
-            if (bubble)
-            {
-                var was = new HashSet<byte>(_linked);
-                _linked.Clear();
-                foreach (var kv in others) if (Bubbles.Linked(myPos, kv.Value, was.Contains(kv.Key))) _linked.Add(kv.Key);
-                foreach (var id in _linked.Where(id => !was.Contains(id))) Log($"bubbles: linked with {_link.NameOf(id)}");
-                foreach (var id in was.Where(id => !_linked.Contains(id))) { Log($"bubbles: unlinked from {(_link.NameOf(id) is var who && who != "?" ? who : $"player {id} (left)")}"); _doubles.Forget(id); if (_bubbleMirrors.TryGetValue(id, out var gone)) { gone.Clear(); _bubbleMirrors.Remove(id); } }
-            }
             if (owner != _owner)
             {
-                if (!bubble) _mirror.Clear();
-                if (_owner != 0 && !bubble) Say(owner == myId ? "Co-op: your game runs this area" : $"Co-op: sharing {_link.NameOf(owner)}'s world");
+                _mirror.Clear();
+                if (_owner != 0) Say(owner == myId ? "Co-op: your game runs this area" : $"Co-op: sharing {_link.NameOf(owner)}'s world");
                 string why = owner != myId || _link.IAmHost ? ""
                     : Activities.Busy && !Tables.Seated ? " (we're busy with an activity: our game runs it)"
                     : $" ({Authority.WhyOwn(myPos, _link.HostId, others, _owner == 0 ? myId : _owner)})";
@@ -665,27 +585,11 @@ namespace RDR2Coop.Mod
                 Trace("tick: capture");
                 var s = Capture(me, now);
                 s.Following = owner == myId ? (byte)0 : owner;
-                if (Sync.Bubbles) s.Flags |= StateFlags.Bubbles;
                 int veh = Peds.VehicleOf(me.Handle);
                 if (veh != 0)
                 {
                     // Vehicle ids live in the area owner's id space.
-                    if (bubble)
-                    {
-                        // Bubbles: every game has its own vehicles; say whose world this one is in.
-                        s.VehicleOwner = myId;
-                        s.VehicleId = 0;
-                        if (OwnedWorld.Skip.Contains(veh))
-                        {
-                            foreach (var kv in _bubbleMirrors)
-                            {
-                                ushort vid = kv.Value.IdOfVehicle(veh);
-                                if (vid != 0) { s.VehicleOwner = kv.Key; s.VehicleId = vid; break; }
-                            }
-                        }
-                        else s.VehicleId = _owned.IdForVehicle(veh);
-                    }
-                    else { s.VehicleOwner = owner; s.VehicleId = owner == myId ? _owned.IdForVehicle(veh) : _mirror.IdOfVehicle(veh); }
+                    s.VehicleId = owner == myId ? _owned.IdForVehicle(veh) : _mirror.IdOfVehicle(veh);
                     s.Seat = Peds.SeatOf(veh, me.Handle);
                     if (s.Seat == -1)
                     {
@@ -794,10 +698,9 @@ namespace RDR2Coop.Mod
                 }
                 // Our game runs the area and they drive one of our real vehicles:
                 // it follows the copy they steer in their game (a train by its speed alone).
-                bool ourVehicle = VehicleWorld(r.Last, kv.Key) == myId;   // the vehicle is ours: they drive its copy (or our area's one)
-                bool train = ourVehicle && vehicle != 0 && TrainDrive.IsTrain(vehicle);
+                bool train = owner == myId && vehicle != 0 && TrainDrive.IsTrain(vehicle);
                 if (train && Sync.Trains && VEHICLE.GET_PED_IN_VEHICLE_SEAT(vehicle, -1) == r.Puppet.Handle) TrainDrive.FollowDriver(vehicle, st);
-                if (ourVehicle && vehicle != 0 && !train && (st.Flags & StateFlags.Driving) != 0
+                if (owner == myId && vehicle != 0 && !train && (st.Flags & StateFlags.Driving) != 0
                     && VEHICLE.GET_PED_IN_VEHICLE_SEAT(vehicle, -1) == r.Puppet.Handle)
                 {
                     var target = ToGame(st.MountPosition);
@@ -808,20 +711,16 @@ namespace RDR2Coop.Mod
                         VEHICLE.IS_DRAFT_VEHICLE(vehicle), r.Puppet.Handle, ref r.LastDriveMs, now);
                 }
                 Trace($"puppet {kv.Key}: catch hits");
-                r.Puppet.SetCatchHits(bubble ? _linked.Contains(kv.Key) : owner == myId && r.Last.Following == myId);
+                r.Puppet.SetCatchHits(owner == myId && r.Last.Following == myId);
                 puppets[kv.Key] = r.Puppet;
             }
             // The browser has the keys. In a mini-game or activity (a card table, fishing, the bath...) no ride starts
             // (and F stays the game's): it counts as being down.
             if (!_browser.IsOpen) _ride.Tick(me.Handle, _down.IsDown || Activities.Busy, puppets, id => _remotes[id].Last, _link, now);
             Trace("tick: share with enRage");
-            ShareWithEnrage(puppets.Where(kv => kv.Value.Exists).Select(kv => (kv.Value.Handle, _link.NameOf(kv.Key))), (bubble ? _bubbleMirrors.Values.SelectMany(m => m.CopyHandles()) : _mirror.CopyHandles()).Concat(Carrying.Copies), now);
+            ShareWithEnrage(puppets.Where(kv => kv.Value.Exists).Select(kv => (kv.Value.Handle, _link.NameOf(kv.Key))), _mirror.CopyHandles().Concat(Carrying.Copies), now);
 
-            if (bubble)
-            {
-                BubbleTick(me, myId, myPos, owner, puppets, others, now);
-            }
-            else if (owner == myId)
+            if (owner == myId)
             {
                 if (!_mirror.Empty) _mirror.Clear();   // copies belong to a follower only, whatever path made us the owner
                 var followers = new Dictionary<byte, Puppet>();
@@ -855,14 +754,10 @@ namespace RDR2Coop.Mod
             PlayerState? hostState = _remotes.TryGetValue(_link.HostId, out var hr) && hr.HasLast ? hr.Last : (PlayerState?)null;
             Trace("tick: party");
             _party.Tick(_link, TableGames.Busy ? null : hostState, now);   // at a table: no fading or fetching us
-            Trace("tick: cutscenes");
-            if (_link.IAmHost) _cutscenes.HostTick(_link, _owned, _missionProbe.Running ?? MissionProbe.TestMission, _party.IsHosting, now);
-            else _cutscenes.GuestTick(_party.IsMember && _party.Near, bubble ? BubbleMirror(_link.HostId) : _mirror, id => _remotes.TryGetValue(id, out var cr) && cr.Puppet != null && cr.Puppet.Exists ? cr.Puppet.Handle : 0, _link.HostId, now);
             Trace("tick: enRage link");
             _enrage.Tick(_link, _down.IsDown, now);
-            if (bubble) { if (_linked.Contains(_link.HostId) && !TableGames.Busy) _enrage.DrawNames(_link.HostId, BubbleMirror(_link.HostId).HandleOf); }
-            else if (owner != myId && !TableGames.Busy) _enrage.DrawNames(owner, _mirror.HandleOf);
-            if (Visuals.Names && !TableGames.Busy && !Cutscenes.Playing) NameTags.Draw(puppets, _link.NameOf, me.Position);   // off the card game's view and cutscenes
+            if (owner != myId && !TableGames.Busy) _enrage.DrawNames(owner, _mirror.HandleOf);
+            if (Visuals.Names && !TableGames.Busy) NameTags.Draw(puppets, _link.NameOf, me.Position);   // off the card game's view
             Trace("tick: waypoints");
             _waypoints.Tick(_link, now);
             Trace("tick: mission assist");
@@ -877,8 +772,7 @@ namespace RDR2Coop.Mod
             // Party down (26 Oct): everyone in the session can go down; the game's own death only once all are down.
             var partnerIds = _link.Roster.Where(p => p.Id != myId).Select(p => p.Id).ToList();
             bool allOthersDown = PartyDown.AllDown(partnerIds.Select(id => _remotes.TryGetValue(id, out var dr) && dr.HasLast && (dr.Last.Flags & (StateFlags.Downed | StateFlags.Dead)) != 0));
-            bool fight = bubble ? _owned.CombatNear(me.Position, 60f, now) || _bubbleMirrors.Values.Any(m => m.CombatNear(me.Position, 150f))
-                       : owner != myId ? _mirror.CombatNear(me.Position, 150f) : _owned.CombatNear(me.Position, 60f, now);
+            bool fight = owner != myId ? _mirror.CombatNear(me.Position, 150f) : _owned.CombatNear(me.Position, 60f, now);
             if (!TableGames.Busy) _down.Tick(owner != myId, ownerPos, fight, ownerHidden, _link.NameOf(owner), partnerIds.Count, allOthersDown, now);
             _spectate.Tick(_down.IsDown || me.IsDead, _link, id => _remotes.TryGetValue(id, out var sr) && sr.Puppet != null && sr.Puppet.Exists ? sr.Puppet.Handle : 0, now);
             var downed = DownedNear(me.Position);
@@ -888,14 +782,12 @@ namespace RDR2Coop.Mod
                 Say($"Co-op: press {_reviveKey} to revive {_link.NameOf(downed)}");
             }
             Trace("tick: party list");
-            if (!_browser.IsOpen) _partyList.Tick(_link, id =>   // hidden while the co-op menu is open: it sat over the menu's corner
-                 _remotes.TryGetValue(id, out var pl) && pl.HasLast ? pl.Last : (PlayerState?)null, me, _down.IsDown, now);
-            Kills.Tick(_link, bubble || owner == myId, me.Handle, puppets, now);
+            _partyList.Tick(_link, id => _remotes.TryGetValue(id, out var pl) && pl.HasLast ? pl.Last : (PlayerState?)null, me, _down.IsDown, now);
+            Kills.Tick(_link, owner == myId, me.Handle, puppets, now);
             _scoreboard.Tick(_link, now, _contests.Showing);   // the contest panel has the slot while it shows
             _contests.Tick(_link, myPos, now);
             _pings.Tick(_link, me, now); _gifts.Tick(_link, now);
             _emotes.Tick(_link, me.Handle, _down.IsDown, puppets, now);
-            _gamePoker.Tick(_link, myPos, id => _remotes.TryGetValue(id, out var gt) && gt.HasLast ? gt.Last.Position : (Vec3?)null, now);
             _modTables.Tick(_link, myPos, id => _remotes.TryGetValue(id, out var tr) && tr.HasLast ? tr.Last.Position : (Vec3?)null, _down.IsDown, _browser.IsOpen, now);
             Trace("tick: end");
         }
@@ -934,73 +826,13 @@ namespace RDR2Coop.Mod
 
         // The local vehicle (real when our game runs the area, else a copy) a
         // remote player says they sit in, if we share the same area owner.
-        MirrorWorld BubbleMirror(byte id)
-        {
-            if (!_bubbleMirrors.TryGetValue(id, out var m)) _bubbleMirrors[id] = m = new MirrorWorld(_smoothingMs);
-            return m;
-        }
-
-        void ClearBubbleMirrors()
-        {
-            _doubles.ShowAll();
-            _crowd.Clear();
-            foreach (var m in _bubbleMirrors.Values) m.Clear();
-            _bubbleMirrors.Clear();
-            _linked.Clear();
-            OwnedWorld.Skip.Clear();
-        }
-
-        // Bubbles: our own world for the linked players, their worlds as copies, the lead's jobs (law, doors) as before,
-        // and the crowd rule: near a higher-priority linked player our game stops spawning ambient life and retires its
-        // own off-screen ambient people there (never one on screen, fighting, fleeing, tied or dead).
-        void BubbleTick(Ped me, byte myId, Vec3 myPos, byte lead, Dictionary<byte, Puppet> puppets, Dictionary<byte, OtherPlayer> others, long now)
-        {
-            var linkedPuppets = puppets.Where(kv => _linked.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-            var positions = linkedPuppets.Keys.Select(id => _remotes[id].Last.Position).ToList();
-            // A linked game whose world stopped arriving (a cutscene, a loading screen, a stall): its copies go and it
-            // stops counting for the crowd and the trains, until its world comes again.
-            var live = new HashSet<byte>();
-            foreach (byte id in _linked)
-            {
-                var m = BubbleMirror(id);
-                if (now - m.NewestMs <= StaleWorldMs) { live.Add(id); continue; }
-                if (!m.Empty) { m.Clear(); Log($"bubbles: {_link.NameOf(id)}'s world stopped arriving: their copies removed until it does"); }
-            }
-            OwnedWorld.Skip.Clear();
-            foreach (var m in _bubbleMirrors.Values) OwnedWorld.Skip.UnionWith(m.MadeHandles());
-            OwnedWorld.Skip.UnionWith(_doubles.Hidden);   // our people hidden as doubles: never sent either
-            Trace("tick: owned (bubbles)");
-            _owned.Tick(_link, linkedPuppets, puppets.Values, positions, now);
-            foreach (var kv in linkedPuppets)
-            {
-                int damage = kv.Value.TakeHits(me.Handle, out int bone, OwnedWorld.Skip);   // our NPCs hurting their stand-in: theirs to feel (copies' hits are their own games')
-                if (damage > 0) _link.SendHit(kv.Key, 0, (short)Math.Min(damage, short.MaxValue), bone);
-            }
-            if (lead == myId) { _law.OwnerTick(_link, linkedPuppets, now); _doors.Tick(_link, lead, positions, now); }
-            else _doors.Tick(_link, lead, null, now);
-            Trace("tick: mirrors (bubbles)");
-            foreach (byte id in live) BubbleMirror(id).Tick(_link, id, puppets, now);
-            Trace("tick: doubles (bubbles)");
-            _doubles.Tick(_link, _owned, live, BubbleMirror, myPos, now);
-
-            var linkedOthers = others.Where(kv => live.Contains(kv.Key)).ToDictionary(kv => kv.Key, kv => kv.Value);
-            int horse = Game.Player.ActiveHorse?.Handle ?? 0, mount = me.IsOnMount && me.CurrentMount != null ? me.CurrentMount.Handle : 0;
-            var keep = new HashSet<int>(puppets.Values.SelectMany(p => new[] { p.Handle, p.HorseHandle })) { me.Handle, horse, mount, PED._GET_LAST_MOUNT(me.Handle) };
-            Trace("tick: crowd (bubbles)");
-            _crowd.Tick(myId, myPos, _link.HostId, linkedOthers, keep, new List<Vec3>(positions) { myPos }, now);
-        }
-
         int VehicleFor(PlayerState st, byte remoteId, byte owner, byte myId)
         {
             if (st.VehicleId == 0) return 0;
-            byte inWorld = VehicleWorld(st, remoteId);
-            if (inWorld == myId) return _owned.VehicleHandle(st.VehicleId);   // one of ours: they sit in (or drive) our real one
-            if (_bubbleMode) return _linked.Contains(inWorld) ? BubbleMirror(inWorld).VehicleHandle(st.VehicleId) : 0;
-            return inWorld == owner ? _mirror.VehicleHandle(st.VehicleId) : 0;
+            byte theirOwner = st.Following == 0 ? remoteId : st.Following;
+            if (theirOwner != owner) return 0;
+            return owner == myId ? _owned.VehicleHandle(st.VehicleId) : _mirror.VehicleHandle(st.VehicleId);
         }
-
-        // Whose world a player's vehicle id is in, in either mode (older versions send no owner: their area owner's).
-        static byte VehicleWorld(PlayerState st, byte remoteId) => st.VehicleOwner != 0 ? st.VehicleOwner : st.Following != 0 ? st.Following : remoteId;
 
         // A hit on one of our NPCs (when our game runs the area), or an NPC in
         // someone else's game hitting our character (EntityId 0).
@@ -1013,7 +845,7 @@ namespace RDR2Coop.Mod
             if (hit.EntityId != 0)
             {
                 // Only players in our area can shoot our NPCs.
-                if (_remotes.TryGetValue(from, out var r) && r.HasLast && (_bubbleMode ? _linked.Contains(from) : _owner == _link.MyId && r.Last.Following == _link.MyId))
+                if (_owner == _link.MyId && _remotes.TryGetValue(from, out var r) && r.HasLast && r.Last.Following == _link.MyId)
                 {
                     int victim = _owned.PedOf(hit.EntityId);
                     // Burning here: our fire burns it (a partner's fire bottle is made here too), so their copy's burns would count twice.
@@ -1024,7 +856,7 @@ namespace RDR2Coop.Mod
                 return;
             }
             // Only the game that runs our area has NPCs that can reach us.
-            if ((_bubbleMode ? !_linked.Contains(from) : from != _owner) || _down.IsDown || TableGames.Busy) return;   // the card games make us invincible at the table too
+            if (from != _owner || _down.IsDown || TableGames.Busy) return;   // the card games make us invincible at the table too
             var me = Game.Player.Character;
             if (me == null || !me.Exists() || me.IsDead) return;
             if (_down.WouldFinish(hit.Damage)) { _down.GoDown($"hit by an NPC in {_link.NameOf(from)}'s game"); return; }
@@ -1112,7 +944,6 @@ namespace RDR2Coop.Mod
             if (_browserKey != Keys.None && e.KeyCode == _browserKey) { _browser.Toggle(); return; }
             if (_browser.OnKey(e.KeyCode)) return;
             if (_logs != null && _logs.OnKey(e.KeyCode)) return;   // the beta-logs question comes before every other Y/N
-            if (_hostWorld != null && _hostWorld.OnKey(e.KeyCode)) return;   // bring back the last session's checkpoint?
             if (TableGames.Busy && (e.KeyCode == Keys.Y || e.KeyCode == Keys.N)) return;   // the questions they answer wait too
             if (Activities.Busy && (e.KeyCode == _teleportKey || e.KeyCode == _travelKey || e.KeyCode == _ride.Key)) { Say("Co-op: finish what you're doing first"); return; }
             if (_partyKey != Keys.None && e.KeyCode == _partyKey) { _party.Toggle(_link); return; }
@@ -1120,8 +951,6 @@ namespace RDR2Coop.Mod
             if (_scoreboard.OnKey(e.KeyCode)) return;
             if (_spectate.OnKey(e.KeyCode)) return;   // down or dead: the teleport key picks a partner to watch, Esc stops
             if (_pings.OnKey(e.KeyCode)) return;
-            if (_cutsceneTest.OnKey(e.KeyCode, _clock.ElapsedMilliseconds)) return;
-            if (_softsave.OnKey(e.KeyCode, _clock.ElapsedMilliseconds)) return;
             if (_emotes.OnKey(e.KeyCode)) return;
             if (e.KeyCode == _travelKey) { _travelPending = true; return; }
             if (e.KeyCode == _nemesisKey && _enrage.RequestList(_link)) { Say($"Co-op: asking {_link.NameOf(_link.HostId)}'s enRage about your nemeses"); return; }
@@ -1153,15 +982,6 @@ namespace RDR2Coop.Mod
                 Say((_byNameNote != null ? _byNameNote + " | " : "") + $"Co-op {BuildInfo.Version}: {_link.State} | players: {players} | this area: {area} | NPC copies: {_mirror.Count} | {_party.Status}" +
                     (_builtIn != null ? " | " + _builtIn.Status : "") + (_updater?.Available != null ? $" | {_updater.Available} is out: F10 twice > Update" : "") +
                     (_browserKey == Keys.None ? $" | {_statusKey} again: server browser" : "") + (_logs?.Status(_clock.ElapsedMilliseconds) is string ls ? " | " + ls : ""));
-            }
-            else if (e.KeyCode == _pokerFoldKey) Say(PokerWatch.ArmFold());
-            else if (e.KeyCode == _pokerDeckKey) Say(PokerWatch.ArmDeck());
-            else if (e.KeyCode == _pokerAwayKey) Say(PokerWatch.SendAway());
-            else if (e.KeyCode == _clockKey)
-            {
-                CLOCK.SET_CLOCK_TIME(_clockHour, 0, 0);   // a partner hosting sends their clock again: this is for testing alone
-                Say($"Co-op: the time is now {_clockHour:00}:00");
-                Log($"testing: clock set to {_clockHour:00}:00");
             }
             else if (e.KeyCode == _spawnWagonKey)
             {
@@ -1207,13 +1027,11 @@ namespace RDR2Coop.Mod
 
         void OnAborted(object sender, EventArgs e)
         {
-            _hostWorld?.OnAbort();   // never leave the player frozen behind a restore's black screen
             PickList.Close();
             _logs?.OnStop();
             foreach (var r in _remotes.Values) { r.Puppet?.Delete(); Blips.Remove(ref r.FarBlip); }
             PuppetAim.Release();
             _mirror?.Clear();
-            ClearBubbleMirrors();
             _waypoints.Clear();
             _explosions.Clear();   // nobody stays fire- and explosion-proof
             _assist?.Clear();
@@ -1300,7 +1118,6 @@ namespace RDR2Coop.Mod
                 lock (LogLock)
                     File.AppendAllText(Path.Combine("scripts", "RDR2Coop.log"),
                         DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss ") + line + Environment.NewLine);
-                MissionRecorder.OnLog(line);
             }
             catch (Exception) { }
         }

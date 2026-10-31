@@ -9,7 +9,7 @@ cd "$(dirname "$0")/.."
 SHA=03f2264d8d2c1e4c6e79d10cf7ba48d247c6e506
 DIR=build/shdn-newer
 REF=/usr/lib/mono/4.8-api
-LIBS="-nostdlib -r:$REF/mscorlib.dll -r:$REF/System.dll -r:$REF/System.Core.dll -r:$REF/System.Numerics.dll -r:$REF/System.Xml.dll -r:$REF/System.Runtime.Serialization.dll -r:$REF/System.Windows.Forms.dll -r:$REF/System.Drawing.dll"
+LIBS="-nostdlib -r:$REF/mscorlib.dll -r:$REF/System.dll -r:$REF/System.Core.dll -r:$REF/System.Numerics.dll -r:$REF/System.Xml.dll -r:$REF/System.Runtime.Serialization.dll -r:$REF/System.Windows.Forms.dll -r:$REF/System.IO.Compression.dll -r:$REF/System.Drawing.dll"
 if [ ! -f $DIR/ScriptHookRDRNetAPI.dll ]; then
   rm -rf $DIR && mkdir -p $DIR/src
   curl -sL https://github.com/Halen84/ScriptHookRDR2DotNet-V2/archive/$SHA.tar.gz | tar -xz -C $DIR/src --strip-components=1

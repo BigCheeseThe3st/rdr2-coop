@@ -27,7 +27,7 @@ printf 'namespace RDR2Coop { static class BuildInfo { public const string Versio
 REF=/usr/lib/mono/4.8-api
 csc -nologo -warnaserror+ -target:library -langversion:7.3 -optimize+ -unsafe -nostdlib -define:NET48 \
   -r:$REF/mscorlib.dll -r:$REF/System.dll -r:$REF/System.Core.dll -r:$REF/System.Numerics.dll \
-  -r:$REF/System.Xml.dll -r:$REF/System.Runtime.Serialization.dll -r:$REF/System.Windows.Forms.dll -r:$REF/System.Drawing.dll -r:"$API" \
+  -r:$REF/System.Xml.dll -r:$REF/System.Runtime.Serialization.dll -r:$REF/System.Windows.Forms.dll -r:$REF/System.Drawing.dll -r:$REF/System.IO.Compression.dll -r:"$API" \
   -out:dist/shdn/scripts/RDR2Coop.dll build/BuildInfo.cs src/Net/*.cs src/Mod/*.cs
 csc -nologo -warnaserror+ -target:exe -langversion:7.3 \
   -r:System.Numerics.dll -out:build/NetTests.exe src/Net/*.cs tests/*.cs

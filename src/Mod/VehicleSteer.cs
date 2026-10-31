@@ -20,12 +20,12 @@ namespace RDR2Coop.Mod
         public static void Glide(int veh, uint model, Vector3 target, Vector3 current, Vector3 velocity, float yaw,
                                  bool onGround, bool draft, int driver, ref long lastDriveMs, long now)
         {
-            // The body: the wanted velocity plus a firm pull onto the position,
-            // capped; height left to gravity on land.
+            // The body: the wanted velocity plus a hard pull onto the position (a gap
+            // closes in ~1/4 s, so a copy stays within ~1 m), capped; height left to gravity on land.
             var cur = ENTITY.GET_ENTITY_VELOCITY(veh, 0);
-            var pull = (target - current) * 1.5f;
+            var pull = (target - current) * 4f;
             var want = new Vector3(velocity.X + pull.X, velocity.Y + pull.Y, 0f);
-            float max = new Vector3(velocity.X, velocity.Y, 0f).Length() + 5f;
+            float max = new Vector3(velocity.X, velocity.Y, 0f).Length() + 15f;
             if (want.Length() > max) want = want.Normalized * max;
             ENTITY.SET_ENTITY_VELOCITY(veh, new Vector3(want.X, want.Y, onGround ? cur.Z : velocity.Z + pull.Z));
 

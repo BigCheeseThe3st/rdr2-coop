@@ -2,9 +2,9 @@
 // Double-click RDR2CoopSetup.exe in the unpacked download. It finds the game
 // (Steam, Rockstar Games Launcher or Epic), asks a few questions, installs
 // ScriptHookRDR2 (downloaded from its author's site, checksum-checked) and the
-// co-op mod with its own .NET (RDR2Coop.asi + RDR2Coop\). A host who says yes to
-// enRage gets the ScriptHookRDR2DotNet version instead (ScriptHookRDR2DotNet is
-// bundled for that) with the unofficial co-op patch applied to their own enRage.
+// co-op mod with its own .NET (RDR2Coop.asi + RDR2Coop\), for everyone (31 Oct): the
+// loader runs enRage too, so a host who says yes to enRage gets the unofficial co-op
+// patch applied to their own enRage, and ScriptHookRDR2DotNet is switched off (.off).
 //   RDR2CoopSetup.exe --uninstall   takes it out again
 using System;
 using System.Collections.Generic;
@@ -79,9 +79,8 @@ static class Setup
 
         string scripts = Path.Combine(game, "scripts");
         string nem = Path.Combine(scripts, "NemesisMod.dll");
-        // The enRage link only works in the ScriptHookRDR2DotNet version of the mod, so that question comes first.
         bool useEnrage = host && Directory.Exists(PatchDir)   // the optional enRage co-op patch download is unpacked here
-                         && Yes("Install enRage (Nexus mod 10967) with the unofficial co-op patch? This uses the ScriptHookRDR2DotNet version of co-op", File.Exists(nem));
+                         && Yes("Install enRage (Nexus mod 10967) with the unofficial co-op patch?", File.Exists(nem));
 
         Console.WriteLine("\nInstalling:");
         InstallScriptHook(game);
@@ -89,26 +88,24 @@ static class Setup
         string asi = Path.Combine(game, "RDR2Coop.asi"), folder = Path.Combine(game, "RDR2Coop"), old = Path.Combine(scripts, "RDR2Coop.dll");
         // Unpacked straight into the game folder: the files are already in place (deleting first would destroy them)
         bool inPlace = string.Equals(Path.GetFullPath(Path.Combine(Here, "RDR2Coop")), Path.GetFullPath(folder), StringComparison.OrdinalIgnoreCase);
-        if (Directory.Exists(folder) && (useEnrage || !inPlace)) Directory.Delete(folder, true);   // a clean copy, so an older runtime doesn't pile up beside the new one
-        if (useEnrage)
-        {
-            InstallShdn(game);
-            File.Copy(Path.Combine(Here, "shdn", "scripts", "RDR2Coop.dll"), old, true);
-            if (File.Exists(asi)) File.Delete(asi);   // only one copy of the mod may run
-        }
+        if (inPlace) Console.WriteLine("  RDR2Coop.asi and RDR2Coop\\ are already in the game folder");
         else
         {
-            if (inPlace) Console.WriteLine("  RDR2Coop.asi and RDR2Coop\\ are already in the game folder");
-            else
-            {
-                CopyDir(Path.Combine(Here, "RDR2Coop"), folder);
-                File.Copy(Path.Combine(Here, "RDR2Coop.asi"), asi, true);
-            }
-            if (File.Exists(old))   // the ScriptHookRDR2DotNet version: two copies would both join the room and fight
-            {
-                File.Delete(old);
-                Console.WriteLine("  old ScriptHookRDR2DotNet copy of the mod (scripts\\RDR2Coop.dll) removed; your settings are kept");
-            }
+            ClearKeepingBackup(folder);   // a clean copy, so an older runtime doesn't pile up beside the new one
+            CopyDir(Path.Combine(Here, "RDR2Coop"), folder);
+            File.Copy(Path.Combine(Here, "RDR2Coop.asi"), asi, true);
+        }
+        if (File.Exists(old))   // the ScriptHookRDR2DotNet version: two copies would both join the room and fight
+        {
+            File.Delete(old);
+            Console.WriteLine("  old ScriptHookRDR2DotNet copy of the mod (scripts\\RDR2Coop.dll) removed; your settings are kept");
+        }
+        string shdn = Path.Combine(game, "ScriptHookRDRDotNet.asi");
+        if (File.Exists(shdn))   // the loader runs enRage itself, with the co-op link; ScriptHookRDR2DotNet would take enRage from it
+        {
+            if (File.Exists(shdn + ".off")) File.Delete(shdn + ".off");
+            File.Move(shdn, shdn + ".off");
+            Console.WriteLine("  ScriptHookRDR2DotNet switched off (ScriptHookRDRDotNet.asi.off): the mod's loader runs enRage itself");
         }
         string ini = Path.Combine(scripts, "RDR2Coop.ini");
         if (!File.Exists(ini) || !File.ReadAllText(ini).Contains("Server="))
@@ -173,16 +170,13 @@ static class Setup
         }
     }
 
-    // ScriptHookRDR2DotNet V2: only the enRage (.NET 4.8) version of the mod needs it.
-    static void InstallShdn(string game)
+    // Empties the mod's folder except backup\ (the player's save backups and their own story's checkpoint).
+    static void ClearKeepingBackup(string folder)
     {
-        if (!File.Exists(Path.Combine(game, "ScriptHookRDRDotNet.asi")))
-        {
-            // Bundled (zlib licence, see scripthookdotnet\LICENSE.txt).
-            foreach (var name in new[] { "ScriptHookRDRDotNet.asi", "ScriptHookRDRDotNet.ini", "ScriptHookRDRNetAPI.dll" })
-                File.Copy(Path.Combine(Here, "scripthookdotnet", name), Path.Combine(game, name), true);
-            Console.WriteLine("  ScriptHookRDR2DotNet V2 2.2.0 installed");
-        }
+        if (!Directory.Exists(folder)) return;
+        foreach (var d in Directory.GetDirectories(folder))
+            if (!string.Equals(Path.GetFileName(d), "backup", StringComparison.OrdinalIgnoreCase)) Directory.Delete(d, true);
+        foreach (var f in Directory.GetFiles(folder)) File.Delete(f);
     }
 
     // ------------------------------------------------------------ enRage
@@ -330,6 +324,12 @@ static class Setup
         if (File.Exists(dll + ".off-for-coop")) { MoveOver(dll + ".off-for-coop", dll); Console.WriteLine("  enRage switched back on"); }
         if (File.Exists(dll + ".official")) { MoveOver(dll + ".official", dll); Console.WriteLine("  official enRage put back"); }   // last: wins over a patched copy
         if (File.Exists(dll + ".before-coop")) { MoveOver(dll + ".before-coop", dll); Console.WriteLine("  your previous enRage version put back"); }
+        string shdnOff = Path.Combine(game, "ScriptHookRDRDotNet.asi.off");
+        if (File.Exists(shdnOff) && !File.Exists(Path.Combine(game, "ScriptHookRDRDotNet.asi")))
+        {
+            File.Move(shdnOff, Path.Combine(game, "ScriptHookRDRDotNet.asi"));
+            Console.WriteLine("  ScriptHookRDR2DotNet switched back on");
+        }
         Console.WriteLine("  co-op mod removed (ScriptHookRDR2 and ScriptHookRDR2DotNet are left for your other mods)");
     }
 

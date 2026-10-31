@@ -9,12 +9,11 @@ RDR2 Co-op - Windows version (with the installer)
    is removed; your settings are kept.
    Windows may warn that the app is from an unknown publisher (it isn't
    signed): click "More info" then "Run anyway". The source is on GitHub.
-   If you usually host and have enRage 0.9.5.2 (Nexus mod 10967), put its
+   If you usually host and have enRage 0.9.6 (Nexus mod 10967), put its
    official zip in this folder first (or have it installed in the game): the
    installer offers the unofficial enRage co-op patch (enrage-coop-patch
-   folder; see README-ENRAGE-PATCH.txt). That version of co-op runs under
-   ScriptHookRDR2DotNet V2 (included, see scripthookdotnet\LICENSE.txt), which
-   the installer puts in place too.
+   folder; see README-ENRAGE-PATCH.txt). The mod's own loader runs enRage, so
+   the installer switches ScriptHookRDR2DotNet off (ScriptHookRDRDotNet.asi.off).
 3. Load a story save; a subtitle says when you've joined.
 
 Run RDR2CoopSetup.exe again to change settings or to uninstall.

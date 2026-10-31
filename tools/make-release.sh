@@ -101,17 +101,18 @@ cp dist/shdn/scripts/RDR2Coop.dll RDR2Coop.ini "$SHDN/shdn/scripts/"
 cat > "$SHDN/README-SCRIPTHOOKDOTNET.txt" <<EOF
 RDR2 Co-op $VERSION for ScriptHookRDR2DotNet (optional download, the old way)
 ============================================================================
-You don't need this for enRage: since 0.7.66 the main download links with enRage
-0.9.6 by itself (put the official enRage files in scripts\ as its instructions
-say). This version is only for players who need ScriptHookRDR2DotNet for other
-mods. Everyone else uses the main download.
-Needs ScriptHookRDR2, ScriptHookRDR2DotNet V2 2.2.0 and .NET Framework 4.8
-(Linux: prepare-prefix.sh from the Linux installer download gives the game's
-Proton prefix .NET 4.8; the installer runs it when you say yes to enRage).
+You almost certainly want the main download instead: everyone uses the mod's own
+loader now, and it runs enRage 0.9.6 with co-op too (put the official enRage files
+in scripts\ as its instructions say).
+This version moves itself onto that loader the first time it starts: it downloads
+this version's loader (signed by the mod), puts RDR2Coop.asi and the RDR2Coop
+folder in the game folder, switches ScriptHookRDR2DotNet off
+(ScriptHookRDRDotNet.asi.off) and asks you to restart the game. UpdateCheck=No in
+RDR2Coop.ini stops that.
+Needs ScriptHookRDR2, ScriptHookRDR2DotNet V2 2.2.0 and .NET Framework 4.8.
 By hand: copy shdn\scripts\RDR2Coop.dll (and RDR2Coop.ini if you have none) into
-the game's scripts folder, and DELETE RDR2Coop.asi and the RDR2Coop folder from the
-game folder so only one copy of the mod runs. Or let the installer do it
-(RDR2CoopSetup.exe / python3 setup.py: say yes to enRage).
+the game's scripts folder, and remove RDR2Coop.asi from the game folder so only
+one copy of the mod runs.
 EOF
 
 # Server (runs anywhere with Python 3, standard library only).
@@ -225,6 +226,10 @@ cp "$ADDON"/enrage-coop-patch/NemesisMod.coop.patch "$ADDON"/enrage-coop-patch/p
 
 [ "$(ls "$MAIN/scripts")" = RDR2Coop.ini ] || { echo "the main zip's scripts/ must hold only RDR2Coop.ini"; exit 1; }
 (cd release/.stage/main && zip -qr "../../upload/RDR2-Coop-$VERSION.zip" "$N")
+# Signed too: the ScriptHookRDR2DotNet build moves itself onto the loader from this zip (src/Mod/Updater.cs MoveToLoader).
+openssl dgst -sha256 -sign "$KEY" -out "$UPLOAD/RDR2-Coop-$VERSION.zip.sig" "$UPLOAD/RDR2-Coop-$VERSION.zip"
+openssl dgst -sha256 -verify release/.stage/release-key.pub -signature "$UPLOAD/RDR2-Coop-$VERSION.zip.sig" "$UPLOAD/RDR2-Coop-$VERSION.zip" >/dev/null \
+  || { echo "the release signature on RDR2-Coop-$VERSION.zip doesn't verify"; exit 1; }
 (cd release/.stage/shdn && zip -qr "../../upload/RDR2-Coop-ScriptHookDotNet-$VERSION.zip" "$N")
 (cd release/.stage/server && zip -qr "../../upload/RDR2-Coop-Server-$VERSION.zip" "$N")
 (cd release/.stage/tools && zip -qr "../../upload/RDR2-Coop-Linux-Installer-$VERSION.zip" "$N")

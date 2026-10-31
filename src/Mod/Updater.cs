@@ -11,6 +11,7 @@
 // The one-press update swaps the mod only: when latest.txt says the release was built
 // against a newer RDR2Coop.Api than the installed one (the loader zip), the player
 // is told to download the zip instead (the .NET 9 build only).
+// The ScriptHookRDR2DotNet build moves itself onto the new loader at its first start (MoveToLoader).
 // [Coop] UpdateCheck=No turns the check off.
 using System;
 using System.IO;
@@ -30,6 +31,7 @@ namespace RDR2Coop.Mod
         const string Asset = "RDR2Coop.net9.dll";   // the build for our own .NET 9 loader; installed as RDR2Coop\RDR2Coop.dll
 #endif
         const int MaxBytes = 20 << 20;   // the mod is well under 1 MB; anything this big isn't it
+        const int MaxZipBytes = 120 << 20;   // the loader zip with its .NET runtime is about 40 MB
         public const int CheckEveryMs = 30 * 60_000;
         bool _quiet;   // "x is the newest" is logged on the first check only
         readonly ManualResetEvent _stop = new ManualResetEvent(false);   // the mod stops: the check loop ends (a sleeping thread kept the old copy in memory after Insert)
@@ -79,8 +81,15 @@ namespace RDR2Coop.Mod
         // A line for the screen, once.
         public string TakeNote() { var n = _note; _note = null; return n; }
 
+        volatile bool _moved;
+        /// <summary>True once, after the move to the new loader: the game has to restart.</summary>
+        public bool TakeMoved() { bool m = _moved; _moved = false; return m; }
+
         void CheckLoop()
         {
+#if NET48
+            if (MoveToLoader()) return;   // the next start is the loader's, with its own update check
+#endif
             for (;;)
             {
                 Check();
@@ -220,6 +229,71 @@ namespace RDR2Coop.Mod
             }) { IsBackground = true, Name = "RDR2Coop.Update" }.Start();
         }
 
+#if NET48
+        // The new loader for every version (George, 31 Oct: "it should be default now that the new loader is used for all
+        // versions"): this version's loader comes from the release's own zip, signed like the dll, unpacked as the zip lays
+        // it out (RDR2Coop.asi + the RDR2Coop folder; the player's scripts\RDR2Coop.ini stays). This dll goes to
+        // RDR2Coop\backup: the loader won't start while scripts\RDR2Coop.dll and ScriptHookRDRDotNet.asi are both there.
+        // ScriptHookRDRDotNet.asi is switched off too (renamed .off; George, 31 Oct: "I don't care about other mod support
+        // yet. Make it so it moves it out the way"): the loader runs what's in scripts\ itself then, enRage with its co-op
+        // link. The asi only loads when the game starts: true = restart the game.
+
+        bool MoveToLoader()
+        {
+            try
+            {
+                if (!File.Exists(_dll)) return false;
+                string scripts = Path.GetDirectoryName(Path.GetFullPath(_dll)), game = Path.GetDirectoryName(scripts);
+                string asi = Path.Combine(game, "RDR2Coop.asi"), folder = Path.Combine(game, "RDR2Coop");
+                if (!File.Exists(asi) || !File.Exists(Path.Combine(folder, "RDR2Coop.dll")))   // else a loader is there already, refusing to start beside us
+                {
+                    string v = BuildInfo.Version, url = $"{Releases}/download/v{v}/RDR2-Coop-{v}.zip";
+                    byte[] sig = Get(url + ".sig"), zip = Get(url, MaxZipBytes);   // the signature first: older releases have none
+                    if (!UpdateCheck.Verify(zip, sig, UpdateCheck.ReleaseKey)) { CoopScript.Log($"new loader: {v}'s zip refused, signature doesn't match the release key"); return false; }
+                    Unpack(zip, game);
+                }
+                string backup = Path.Combine(folder, "backup"), old = Path.Combine(backup, "RDR2Coop.dll.scripthookdotnet-" + BuildInfo.Version);
+                Directory.CreateDirectory(backup);
+                File.Delete(old);
+                File.Move(_dll, old);
+                string shdn = Path.Combine(game, "ScriptHookRDRDotNet.asi"), shdnSaid = "no ScriptHookRDRDotNet.asi";
+                if (File.Exists(shdn))
+                    try { File.Delete(shdn + ".off"); File.Move(shdn, shdn + ".off"); shdnSaid = "ScriptHookRDRDotNet.asi switched off (.off)"; }
+                    catch (Exception e) { shdnSaid = "ScriptHookRDRDotNet.asi couldn't be switched off (" + e.Message + ")"; }
+                CoopScript.Log($"new loader: {BuildInfo.Version} in place (RDR2Coop.asi + RDR2Coop folder), this ScriptHookRDR2DotNet copy moved to {old}; {shdnSaid}; restart the game");
+                _moved = true;
+                return true;
+            }
+            catch (Exception e) { CoopScript.Log("new loader: not moved yet (" + e.Message + "); the next start tries again"); return false; }
+        }
+
+        // The zip's RDR2-Coop/RDR2Coop/... and RDR2-Coop/RDR2Coop.asi into the game folder; the asi last, so the loader never
+        // starts beside a half-written folder.
+        static void Unpack(byte[] zip, string game)
+        {
+            const string Top = "RDR2-Coop/";
+            string root = Path.GetFullPath(game).TrimEnd('\\', '/') + Path.DirectorySeparatorChar;
+            using (var z = new System.IO.Compression.ZipArchive(new MemoryStream(zip)))
+            {
+                var asi = z.GetEntry(Top + "RDR2Coop.asi") ?? throw new IOException("no RDR2Coop.asi in the zip");
+                foreach (var e in z.Entries)
+                    if (e.FullName.StartsWith(Top + "RDR2Coop/", StringComparison.Ordinal) && !e.FullName.EndsWith("/")) Extract(e, root, e.FullName.Substring(Top.Length));
+                Extract(asi, root, "RDR2Coop.asi");
+            }
+        }
+
+        static void Extract(System.IO.Compression.ZipArchiveEntry e, string root, string rel)
+        {
+            string to = Path.GetFullPath(Path.Combine(root, rel));
+            if (!to.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new IOException("a path outside the game folder in the zip: " + e.FullName);
+            Directory.CreateDirectory(Path.GetDirectoryName(to));
+            using (var s = e.Open())
+            using (var f = File.Create(to + ".new")) s.CopyTo(f);
+            File.Copy(to + ".new", to, true);
+            File.Delete(to + ".new");
+        }
+#endif
+
 #if !NET48
         // Whether the assembly references RDR2Coop.Api (read from its metadata, nothing is loaded): the same test Core applies before loading a mod.
         static bool ReferencesApi(byte[] dll)
@@ -234,7 +308,7 @@ namespace RDR2Coop.Mod
         }
 #endif
 
-        static byte[] Get(string url)
+        static byte[] Get(string url, int max = MaxBytes)
         {
             var req = (HttpWebRequest)WebRequest.Create(url);
             req.Timeout = req.ReadWriteTimeout = 30000;
@@ -247,7 +321,7 @@ namespace RDR2Coop.Mod
                 for (int n; (n = s.Read(buf, 0, buf.Length)) > 0;)
                 {
                     ms.Write(buf, 0, n);
-                    if (ms.Length > MaxBytes) throw new IOException("download too large");
+                    if (ms.Length > max) throw new IOException("download too large");
                 }
                 return ms.ToArray();
             }

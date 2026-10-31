@@ -178,10 +178,9 @@ ENRAGE (optional, host only)
   Another enRage version runs as normal, without the co-op link.
   Don't install ScriptHookRDR2DotNet (ScriptHookRDRDotNet.asi) for enRage:
   when it's there, it runs enRage instead and the co-op link is off.
-  The old way still works for players who need ScriptHookRDR2DotNet for
-  other mods: the ScriptHookRDR2DotNet version of co-op (the optional
-  RDR2-Coop-ScriptHookDotNet download), set up by the installers when you say
-  yes to enRage (it needs .NET Framework 4.8; on Linux prepare-prefix.sh).
+  The installers switch it off (ScriptHookRDRDotNet.asi.off), and the old
+  ScriptHookRDR2DotNet version of co-op moves itself onto the loader the first
+  time it starts, then asks you to restart the game.
 
 UNINSTALL
   Windows: run RDR2CoopSetup.exe again and type U, or by hand delete

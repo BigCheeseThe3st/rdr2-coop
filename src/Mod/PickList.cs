@@ -25,15 +25,20 @@ namespace RDR2Coop.Mod
         readonly string _title, _hint;
         readonly IList<(string label, Action act)> _rows;
         readonly Action _cancel;
+        readonly int _readyAt;   // Environment.TickCount from which keys answer it (a notice that must be read first)
         int _selected;
 
-        PickList(string title, IList<(string, Action)> rows, Action cancel, string hint) { _title = title; _rows = rows; _cancel = cancel; _hint = hint; }
+        PickList(string title, IList<(string, Action)> rows, Action cancel, string hint, int waitMs)
+        { _title = title; _rows = rows; _cancel = cancel; _hint = hint; _readyAt = Environment.TickCount + waitMs; }
+
+        int SecondsLeft => Math.Max(0, (_readyAt - Environment.TickCount + 999) / 1000);
 
         /// <summary>Open a list. Each row's action runs after the list closes; onCancel on Esc. The label can carry ~codes~: they're stripped.</summary>
-        public static void Open(string title, IList<(string label, Action act)> rows, Action onCancel = null, string hint = null)
+        /// <summary>waitMs: no key answers it before then (George, 31 Oct: "forced to read it").</summary>
+        public static void Open(string title, IList<(string label, Action act)> rows, Action onCancel = null, string hint = null, int waitMs = 0)
         {
             if (rows == null || rows.Count == 0) return;
-            Current = new PickList(title, rows, onCancel, hint);
+            Current = new PickList(title, rows, onCancel, hint, waitMs);
         }
 
         public static void Close() { Current = null; if (_ask != null) { MISC.CANCEL_ONSCREEN_KEYBOARD(); _ask = null; } }
@@ -44,6 +49,7 @@ namespace RDR2Coop.Mod
             if (_ask != null) return true;   // typing into the game's keyboard
             var p = Current;
             if (p == null) return false;
+            if (p.SecondsLeft > 0) return true;   // still to be read
             switch (key)
             {
                 case Keys.Up: p._selected = (p._selected + p._rows.Count - 1) % p._rows.Count; return true;
@@ -65,7 +71,8 @@ namespace RDR2Coop.Mod
             if (p == null) return;
             PAD.DISABLE_ALL_CONTROL_ACTIONS(0);
             int first = Math.Max(0, Math.Min(p._selected - Rows / 2, p._rows.Count - Rows));
-            var lines = new List<(string, Color)> { (p._title + "   (Up/Down pick, Enter choose, Esc close)", Title) };
+            int left = p.SecondsLeft;
+            var lines = new List<(string, Color)> { (p._title + (left > 0 ? $"   (please read: Enter in {left} s)" : "   (Up/Down pick, Enter choose, Esc close)"), Title) };
             for (int i = first; i < Math.Min(p._rows.Count, first + Rows); i++)
                 lines.Add(((i == p._selected ? "> " : "   ") + p._rows[i].label, i == p._selected ? Color.Gold : Color.White));
             if (p._hint != null) lines.Add((p._hint, Color.LightGray));

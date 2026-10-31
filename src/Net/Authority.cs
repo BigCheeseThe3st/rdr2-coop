@@ -44,7 +44,7 @@ namespace RDR2Coop.Net
             return others.TryGetValue(best, out var end) && end.Away ? me : best;
         }
 
-        public static bool Better(byte a, byte b, byte host) => a == host || (b != host && a < b);
+        static bool Better(byte a, byte b, byte host) => a == host || (b != host && a < b);
 
         /// <summary>Why Pick left us running our own area although the host is on the server, for the log (bug #4: guests'
         /// games switching to their own world for seconds at a time, spawning their own people).</summary>
