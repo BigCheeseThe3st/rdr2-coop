@@ -36,6 +36,7 @@ namespace RDR2Coop.Mod
         readonly Random _rng = new Random();
 
         public bool IsMember => _mode == Mode.Member;
+        public bool Near { get; private set; }   // a member within reach of the host (not asked to come over first)
         public bool IsHosting => _mode == Mode.Hosting;
         public string Status => _mode == Mode.Hosting ? $"mission party on ({_members.Count} with you)"
                               : _mode == Mode.Member ? (_prompt.Asking ? "asked to go to the host (Y/N)" : "in the host's mission party")
@@ -129,6 +130,7 @@ namespace RDR2Coop.Mod
         // hostState: the host's latest state (null if we have none yet).
         public void Tick(ServerLink link, PlayerState? hostState, long now)
         {
+            if (HostWorld.Swapping) return;   // the host's story is being swapped in: the screen and the player are the restore's
             if (_mode == Mode.Hosting)
             {
                 if (!link.IAmHost) { End(link, "you're no longer the host"); return; }
@@ -161,6 +163,7 @@ namespace RDR2Coop.Mod
             bool hostHidden = (host.Flags & (StateFlags.InCutscene | StateFlags.ScreenFaded)) != 0 && (host.Flags & (StateFlags.Downed | StateFlags.Dead)) == 0;
             var me = Game.Player.Character;
             bool far = me.Position.DistanceTo(CoopScript.ToGame(host.Position)) > FarDistance;
+            Near = !far;
 
             // Far from the host and about to be faded out or moved: ask first. Close by, we're in their world already.
             bool wanted = far && !_hidden, go = _prompt.Tick(wanted, now) || (_goNow && wanted);
@@ -178,6 +181,7 @@ namespace RDR2Coop.Mod
             if (hostHidden)
             {
                 Hide();
+                if (Cutscenes.Playing) return;   // the host's cutscene plays here too (Cutscenes.cs): no black screen
                 DrawWaiting(link.NameOf(_host), (host.Flags & StateFlags.InCutscene) != 0);
                 if (now - _lastSay > 4000) { _lastSay = now; Say($"Co-op: {link.NameOf(_host)} is in a cutscene"); }
                 return;
@@ -242,7 +246,7 @@ namespace RDR2Coop.Mod
 
         // Next to the host (a couple of metres behind them), on the ground,
         // horse and all if we ride.
-        static void MoveTo(PlayerState host)
+        internal static void MoveTo(PlayerState host)
         {
             var me = Game.Player.Character;
             double r = host.Heading * Math.PI / 180.0;

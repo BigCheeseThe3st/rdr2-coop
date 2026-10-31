@@ -113,7 +113,8 @@ namespace RDR2Coop.Mod
             {
                 if (now - _onSince < 1000) return;   // still getting on
                 if (!_seated) Screen.DisplaySubtitle($"Co-op: couldn't get on {_withName}'s horse");
-                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)"));
+                int on = PED.GET_MOUNT(me);
+                CoopScript.Log($"ride double: off {_withName}'s horse" + (_seated ? "" : " (never got on)") + $" (now on {on}, theirs {_horse} exists {Peds.Exists(_horse)}, their stand-in on it {(puppets.TryGetValue(With, out var sp) && PED.GET_MOUNT(sp.Handle) == _horse)})");
                 With = 0; _horse = 0; _offAt = 0;
                 PED.SET_PED_CAN_BE_KNOCKED_OFF_VEHICLE(me, 0);   // the game's own again
                 return;
