@@ -32,7 +32,10 @@ namespace RDR2Coop.Mod
 
         // enRage runs in this game (its own F11 menu is then the one to use).
         // Set by enRage itself (its copy check) when it runs in this loader.
-        public static bool EnrageHere => AppDomain.CurrentDomain.GetData("enRAGE.active") != null;
+        public static bool EnrageHere => !StoppedForGuest && AppDomain.CurrentDomain.GetData("enRAGE.active") != null;
+
+        /// <summary>enRage is installed here but stopped while we're a guest (EnrageGuest): F11 asks the host's.</summary>
+        public static bool StoppedForGuest { get; set; }
 
         // Name tags over the copies of the area owner's named NPCs.
         public void DrawNames(byte owner, Func<ushort, int> handleOf)
@@ -117,4 +120,45 @@ namespace RDR2Coop.Mod
         static void Draw(string[] lines) =>
             Ui.Panel(lines.Select((l, i) => (l, i == 0 ? Color.FromArgb(255, 200, 40, 40) : Color.White)).ToList(), 560f);
     }
+
+#if !NET48
+    // enRage off while we're a guest (George, 31 Oct: "off whenever a guest"). A guest's enRage runs its own world and
+    // starts its own fights next to them; shown the host's world, those people are hidden and attacked unseen (George's
+    // O'Driscolls and Lemoyne Raiders, enRage's log, 31 Oct). The loader stops just enRage (on its way out it saves and
+    // despawns its people) and starts it again, co-op patch and all, once we've been no guest for a while.
+    static class EnrageGuest
+    {
+        const int BackAfterMs = 30000;   // a host's drop or a reshuffle of the room shouldn't restart enRage
+        static string _file;             // enRage's file while we have it stopped
+        static long _notGuestSince = -1;
+
+        public static void Tick(bool guest, long now)
+        {
+            var domain = RDR2DN.ScriptDomain.CurrentDomain;
+            if (domain == null) return;
+            if (guest)
+            {
+                _notGuestSince = -1;
+                if (_file != null) return;
+                var s = domain.RunningScripts.FirstOrDefault(x => x.IsRunning && x.FileName != null
+                    && System.IO.Path.GetFileName(x.FileName).Equals("NemesisMod.dll", StringComparison.OrdinalIgnoreCase));
+                if (s == null) return;
+                _file = s.FileName;
+                EnrageLink.StoppedForGuest = true;
+                domain.AbortScripts(_file);
+                CoopScript.Log("enRage: stopped while we're a guest (its own fights would start next to us, hidden in the host's world); back when we host or leave");
+                CoopScript.Say("Co-op: enRage is off while you're a guest (it runs on the host). It comes back when you host or leave.");
+                return;
+            }
+            if (_file == null) return;
+            if (_notGuestSince < 0) { _notGuestSince = now; return; }
+            if (now - _notGuestSince < BackAfterMs) return;
+            string file = _file;
+            _file = null;
+            EnrageLink.StoppedForGuest = false;
+            domain.StartScripts(file);
+            CoopScript.Log("enRage: started again (no longer a guest)");
+        }
+    }
+#endif
 }
