@@ -24,7 +24,7 @@ namespace RDR2Coop.Mod
         public bool IsDown { get; private set; }
         long _calmSince = -1, _lastRagdoll, _lastSay, _deadSince = -1, _clearScreenUntil = -1, _downSince = -1;
         const int ClearScreenMs = 30000;   // after bringing us back from the game's death: its respawn screen is lifted for this long
-        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged, _bledOut, _letGo;
+        bool _wasDead, _returnAfterDeath, _held, _guarding, _clearLogged, _bledOut, _gaveUp;
 
         static Ped Me => Game.Player.Character;
         static int Health => ENTITY.GET_ENTITY_HEALTH(Me.Handle);
@@ -73,20 +73,19 @@ namespace RDR2Coop.Mod
         {
             var me = Me;
             bool canRevive = partners > 0 && !allOthersDown && !_bledOut;
-            Guard(canRevive && !_letGo);
+            Guard(canRevive && !_gaveUp);   // once given up on a death, the hold stays off until we're alive: switched back on every tick it held the game's respawn forever (players stuck dead, 31 Oct)
 
             if (me.IsDead)
             {
                 if (_deadSince < 0) _deadSince = now;
-                if (canRevive && now - _deadSince < BringBackForMs) { BringBack(me, now); return; }
-                if (canRevive) { Guard(false); CoopScript.Log("down: couldn't bring us back from the game's death in 5 s: its respawn goes ahead"); }
+                if (canRevive && !_gaveUp && now - _deadSince < BringBackForMs) { BringBack(me, now); return; }
+                if (canRevive && !_gaveUp) { _gaveUp = true; Guard(false); CoopScript.Log("down: couldn't bring us back from the game's death in 5 s: its respawn goes ahead"); }
                 _wasDead = true;
                 return;
             }
-            _deadSince = -1;
+            _deadSince = -1; _gaveUp = false;
             if (_wasDead) { _wasDead = false; _bledOut = false; _returnAfterDeath = following; _calmSince = -1; }
             if (now < _clearScreenUntil) ClearDeathScreen();
-            if (_letGo && !IsDown) _letGo = false;   // up again: the hold back (the next death waits for a revive again)
 
             if (!IsDown)
             {
@@ -168,10 +167,6 @@ namespace RDR2Coop.Mod
             if (CAM.IS_SCREEN_FADED_OUT() || CAM.IS_SCREEN_FADING_OUT()) CAM.DO_SCREEN_FADE_IN(500);
             GRAPHICS.ANIMPOSTFX_STOP_ALL();   // the death screen's colour effect
             _clearScreenUntil = now + ClearScreenMs; _clearLogged = false;
-            // The death the game is holding back stays pending while held: Esc, the map and the minimap stayed dead and
-            // lawmen came but wouldn't fight, until the hold was let go (30 Oct; letting go for 0.5 s wasn't enough).
-            // Down we're invincible: the hold is let go until we're up.
-            _letGo = true;
             _deadSince = -1;
             IsDown = false;
             GoDown($"the game killed us (cause {cause:X8}): brought back where we fell instead");
