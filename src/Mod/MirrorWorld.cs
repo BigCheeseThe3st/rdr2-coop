@@ -30,7 +30,6 @@ namespace RDR2Coop.Mod
             public int Blip;
             public bool HogtieSent;
             public uint LookSig;
-            public bool? Guarded;        // can't be hurt here (the owner's horse, a mission ally); null: not set yet
             public EntityAction Action;
             public uint Scenario;
         }
@@ -61,12 +60,10 @@ namespace RDR2Coop.Mod
             public int Train;
             public uint Config;
             public long LastFixMs;
-            public List<int> Cars = new List<int>();   // its carriages, removed with it even when the engine went first
         }
 
         const float TrainFixDistance = 40f;
         readonly Dictionary<ushort, MirrorTrain> _trains = new Dictionary<ushort, MirrorTrain>();
-        readonly List<int> _oldTrains = new List<int>();   // copies DELETE_MISSION_TRAIN didn't remove at once (one just made): tried again
         bool _trainsOff;
 
         const float ClearRadius = 200f;
@@ -82,9 +79,7 @@ namespace RDR2Coop.Mod
         readonly RetryBook _retry = new RetryBook();                     // refused or slow for now: tried again after a wait
         readonly Dictionary<uint, long> _loadingSince = new Dictionary<uint, long>();
         long _lastClearMs;
-        readonly HashSet<int> _hidden = new HashSet<int>();
-        readonly HashSet<ushort> _taken = new HashSet<ushort>();   // copy horses we got on: ours now, never copied again
-        readonly HashSet<int> _horseLogged = new HashSet<int>();   // breeds already logged by the guest clear   // our own script-made people (camp, side quests), hidden while we show the owner's world
+        readonly HashSet<int> _hidden = new HashSet<int>();   // our own script-made people (camp, side quests), hidden while we show the owner's world
         static uint _neutralGroup, _hostileGroup;   // the joaat of fixed names: the same for every instance; made on first use, owner or follower
         readonly Random _rng = new Random();
         byte _myId;
@@ -92,27 +87,17 @@ namespace RDR2Coop.Mod
         public MirrorWorld(int smoothingMs) { _buffer = new WorldBuffer(smoothingMs); }
 
         public void Push(WorldSnapshot w, long at) => _buffer.Push(w, at);
-        public long NewestMs => _buffer.NewestMs;
 
         // owner: the game whose area we show; puppets: every other player here.
         ServerLink _link;
         byte _ownerId;
 
-        /// <summary>Bubbles ([Gameplay] Bubbles, src/Net/Bubbles.cs): one of these per linked player, next to our own
-        /// world; nothing of ours is suppressed, cleared or hidden here then (the crowd rule in CoopScript decides).</summary>
-        public static bool Bubbles;
-
-        /// <summary>Everything this mirror made (copies, their vehicles, stand-in drivers, trains): our own world never
-        /// sends these on (bubbles).</summary>
-        public IEnumerable<int> MadeHandles() =>
-            _mirrors.Values.Select(m => m.Ped).Concat(_vehicles.Values.SelectMany(v => new[] { v.Veh, v.StandIn })).Concat(_trains.Values.Select(t => t.Train)).Where(h => h != 0);
-
         public void Tick(ServerLink link, byte owner, IDictionary<byte, Puppet> puppets, long now)
         {
             _link = link;
             _ownerId = owner;
-            if (!Bubbles) SuppressAmbient();
-            if (!Bubbles && now - _lastClearMs > 1000)
+            SuppressAmbient();
+            if (now - _lastClearMs > 1000)
             {
                 _lastClearMs = now;
                 ClearLocalPeds(puppets.Values);
@@ -133,8 +118,7 @@ namespace RDR2Coop.Mod
             LogStats(now);
 
             // Trains: none of our own while we show someone else's area.
-            if (!_trainsOff && !Bubbles) { VEHICLE.SET_RANDOM_TRAINS(false); VEHICLE.DELETE_ALL_TRAINS(); _trainsOff = true; }
-            foreach (int old in _oldTrains.ToList()) { int h = old; if (Peds.Exists(h)) DeleteTrain(ref h); if (!Peds.Exists(old)) _oldTrains.Remove(old); }
+            if (!_trainsOff) { VEHICLE.SET_RANDOM_TRAINS(false); VEHICLE.DELETE_ALL_TRAINS(); _trainsOff = true; }
             var tseen = new HashSet<ushort>();
             foreach (var t in _buffer.LatestTrains())
             {
@@ -142,12 +126,6 @@ namespace RDR2Coop.Mod
                 UpdateTrain(t, now);
             }
             foreach (var id in _trains.Keys.Where(id => !tseen.Contains(id)).ToList()) RemoveTrain(id);
-
-            // A copy horse we sit on is ours from now on (the owner's game keeps its own): steered after the
-            // owner's, it would throw us straight off (guests couldn't ride a horse they took, 29 Oct).
-            int myPed = PLAYER.PLAYER_PED_ID();
-            int myMount = PED.IS_PED_ON_MOUNT(myPed) ? PED.GET_MOUNT(myPed) : 0;
-            if (myMount != 0) foreach (var kv in _mirrors.Where(kv => kv.Value.Ped == myMount).ToList()) Take(kv.Key, kv.Value);
 
             var seen = new HashSet<ushort>();
             // Horses first, so their riders can be put on them in the same tick.
@@ -173,7 +151,7 @@ namespace RDR2Coop.Mod
                     CoopScript.Log($"copy {kv.Key} ({kv.Value.Model:X8}) killed in our game by us (cause {how:X8}): told {owner}'s game to kill it");
                     continue;
                 }
-                if (ENTITY.IS_ENTITY_DEAD(kv.Value.Ped) || kv.Value.Guarded == true) continue;
+                if (ENTITY.IS_ENTITY_DEAD(kv.Value.Ped)) continue;
                 if (!kv.Value.KnockoutLogged && PED.IS_PED_INCAPACITATED(kv.Value.Ped))
                 {
                     kv.Value.KnockoutLogged = true;   // diagnostics: knockouts aren't relayed (yet)
@@ -186,18 +164,6 @@ namespace RDR2Coop.Mod
                     if (now - _hitLogMs > 1000) { _hitLogMs = now; CoopScript.Log($"hit sent to {owner}'s game: copy {kv.Key}, damage {damage}"); }
                 }
             }
-        }
-
-        // The owner's game says this copy's NPC lives, and it decides: up again where it fell. Removing it made it
-        // vanish ("they fall off the map") and pop up again. Its trap and tasks are set again on the next update.
-        static bool Revive(Mirror m)
-        {
-            PED.RESURRECT_PED(m.Ped);
-            PED.REVIVE_INJURED_PED(m.Ped);
-            if (ENTITY.IS_ENTITY_DEAD(m.Ped)) return false;
-            TASK.CLEAR_PED_TASKS_IMMEDIATELY(m.Ped, false, true);
-            m.KillSentMs = 0; m.KillPending = false; m.LastTaskMs = 0; m.Guarded = null; m.KnockoutLogged = false;
-            return true;
         }
 
         // Whether we caused this copy's death: the game names us as its source, or we damaged it.
@@ -216,7 +182,6 @@ namespace RDR2Coop.Mod
                 if (_mirrors.ContainsKey(e.Id)) Remove(e.Id);
                 return;
             }
-            if (_taken.Contains(e.Id)) return;
             if (!_mirrors.TryGetValue(e.Id, out var m) || m.Model != e.Model || !Peds.Exists(m.Ped))
             {
                 if (m != null) Remove(e.Id);
@@ -228,19 +193,14 @@ namespace RDR2Coop.Mod
                         CoopScript.Log($"cannot spawn model {e.Model:X8} right now (the game holds {World.GetAllPeds().Length} people, {_hidden.Count} of ours hidden): trying again in 5 s");
                     return;
                 }
+                if ((e.Flags & EntityFlags.PlayerHorse) != 0)
+                {
+                    ENTITY.SET_ENTITY_INVINCIBLE(ped, true);   // the owner's horse: shown, never hurt
+                    ENTITY.SET_ENTITY_CAN_BE_DAMAGED(ped, false);
+                }
+                else Peds.ArmTrap(ped);
                 m = new Mirror { Ped = ped, Model = e.Model };
                 _mirrors[e.Id] = m;
-            }
-            if (Cutscenes.Scripted.Contains(m.Ped)) return;   // playing the host's cutscene here
-
-            // The owner's horse and a story mission's allies: shown, never hurt here, since the owner's game ignores
-            // our hits on them (a copy we could kill only dropped and came back). Anyone else is damage-trapped.
-            bool guarded = !e.Dead && (e.Flags & (EntityFlags.PlayerHorse | EntityFlags.Protected)) != 0;   // dead in the owner's game: dies here too
-            if (m.Guarded != guarded)
-            {
-                Peds.ArmTrap(m.Ped);   // full trap health either way, so the hit loop never reads a guarded copy's health as damage
-                if (guarded) { ENTITY.SET_ENTITY_INVINCIBLE(m.Ped, true); ENTITY.SET_ENTITY_CAN_BE_DAMAGED(m.Ped, false); }
-                m.Guarded = guarded;
             }
 
             // The same named outfit as in the owner's game (not a random one).
@@ -284,14 +244,10 @@ namespace RDR2Coop.Mod
                 if (now - _deadLogMs > 1000)
                 {
                     _deadLogMs = now;
-                    string what = m.KillSentMs > 0 ? $"copy {e.Id} we killed is still alive in the owner's game after {KillWaitMs / 1000} s"
-                                                   : $"copy {e.Id} died in our game but not in the owner's, and not by us (source {PED.GET_PED_SOURCE_OF_DEATH(m.Ped)})";
-                    bool back = Revive(m);
-                    CoopScript.Log(what + (back ? ": back on its feet where it fell" : ": the game won't revive it: removed, respawns"));
-                    if (back) return;
+                    CoopScript.Log(m.KillSentMs > 0 ? $"copy {e.Id} we killed is still alive in the owner's game after {KillWaitMs / 1000} s (a mission ally? see their log): removed, respawns"
+                                                    : $"copy {e.Id} died in our game but not in the owner's, and not by us (source {PED.GET_PED_SOURCE_OF_DEATH(m.Ped)}): removed, respawns");
                 }
-                else if (Revive(m)) return;
-                Remove(e.Id); return;   // died here but not in the owner's game, and won't get up: respawn next tick
+                Remove(e.Id); return;   // died here but not in the owner's game: respawn next tick
             }
 
             // We hogtied this copy: the owner's game ties up the real one; the
@@ -350,9 +306,6 @@ namespace RDR2Coop.Mod
                 return;
             }
 
-            // A riderless horse right next to us: we may be getting on it; held still till we're on (then Take).
-            if ((e.Flags & EntityFlags.Animal) != 0 && PED._IS_THIS_MODEL_A_HORSE(m.Model) && PED._IS_MOUNT_SEAT_FREE(m.Ped, -1)
-                && Peds.Position(m.Ped).DistanceTo(Game.Player.Character.Position) < 3f) return;
             m.LastTaskMs = Peds.Steer(m.Ped, e.Position, e.Velocity, e.Heading,
                 (e.Flags & EntityFlags.Animal) != 0, m.LastTaskMs, ref m.Standing, now);
         }
@@ -401,7 +354,6 @@ namespace RDR2Coop.Mod
                 mv = new MirrorVehicle { Veh = veh, Model = v.Model };
                 _vehicles[v.Id] = mv;
             }
-            if (Cutscenes.Scripted.Contains(mv.Veh)) return;   // in the host's cutscene here
             Blips.Sync(ref mv.Blip, mv.Veh, (v.Flags & VehicleFlags.Blipped) != 0, "BLIP_STYLE_OBJECTIVE");
 
             // We drive the copy ourselves: leave it to us (the owner's wagon won't follow yet).
@@ -550,27 +502,6 @@ namespace RDR2Coop.Mod
             return ped;
         }
 
-        // Plays a scenario (sitting, leaning, a piano) where the owner's ped plays it. Played in place, one on a seat
-        // or a prop sat in mid-air wherever that prop isn't here at that height (another camp, a prop not streamed,
-        // the riverboat's piano with the boat elsewhere: 30 Oct, seated NPCs and a partner at a piano floating). Up
-        // off the ground: our own seat or prop of any kind right there if there is one, else standing on the ground.
-        internal static void PlayScenario(int ped, uint scenario, Vector3 at, float heading)
-        {
-            var ground = OnGround(at);
-            if (at.Z - ground.Z > 0.4f)
-            {
-                if (TASK.DOES_SCENARIO_EXIST_IN_AREA(at, 1.0f, true, 0, false))
-                {
-                    TASK.TASK_USE_NEAREST_SCENARIO_TO_COORD_WARP(ped, at, 1.0f, -1, true, false, false, false);
-                    return;
-                }
-                ENTITY._SET_ENTITY_COORDS_AND_HEADING(ped, ground, heading, false, false, false);
-                return;
-            }
-            ENTITY._SET_ENTITY_COORDS_AND_HEADING(ped, at, heading, false, false, false);
-            TASK.TASK_START_SCENARIO_IN_PLACE_HASH(ped, scenario, -1, true, 0, heading, false);
-        }
-
         // The ground under a point (searching from a little above it), else the point.
         static unsafe Vector3 OnGround(Vector3 p)
         {
@@ -595,8 +526,6 @@ namespace RDR2Coop.Mod
                 ENTITY.SET_ENTITY_INVINCIBLE(train, true);
                 VEHICLE._SET_TRAIN_STOPS_FOR_STATIONS(train, false);   // it stops when the owner's stops
                 mt = new MirrorTrain { Train = train, Config = t.Config };
-                int cars = VEHICLE._GET_TRAIN_CARRIAGE_TRAILER_NUMBER(train);
-                for (int i = 0; i < cars; i++) { int c = VEHICLE.GET_TRAIN_CARRIAGE(train, i); if (c != 0 && c != train) mt.Cars.Add(c); }
                 _trains[t.Id] = mt;
                 CoopScript.Log($"train {t.Id}: created config {t.Config:X8} with {t.Cars} cars");
             }
@@ -622,26 +551,9 @@ namespace RDR2Coop.Mod
             {
                 int h = mt.Train;
                 if (Sync.Trains) TrainDrive.EmptySeats(h);   // stand-ins and copies sit in it now
-                DeleteTrain(ref h);
-                if (Peds.Exists(mt.Train)) { _oldTrains.Add(mt.Train); CoopScript.Log($"train {id}: the old copy is still there: removing it again"); }
-            }
-            // Its carriages too: an engine the game removed (out of range, say) left them standing on the track, and a
-            // new copy came on top (George in Kant's game 30 Oct, still several trains after the copies were rebuilt).
-            if (mt != null)
-            {
-                int left = 0;
-                foreach (int c in mt.Cars)
-                    if (Peds.Exists(c)) { left++; Peds.Delete(c); }
-                if (left > 0) CoopScript.Log($"train {id}: {left} carriages of the old copy removed");
+                VEHICLE.DELETE_MISSION_TRAIN(&h);
             }
             _trains.Remove(id);
-        }
-
-        static unsafe void DeleteTrain(ref int h)
-        {
-            int t = h;
-            VEHICLE.DELETE_MISSION_TRAIN(&t);
-            h = t;
         }
 
         void RemoveVehicle(ushort id)
@@ -654,7 +566,6 @@ namespace RDR2Coop.Mod
         // other players' puppets in the copies.
         public int HandleOf(ushort id) => _mirrors.TryGetValue(id, out var m) && Peds.Exists(m.Ped) && !ENTITY.IS_ENTITY_DEAD(m.Ped) ? m.Ped : 0;
 
-        public IEnumerable<(uint model, Vector3 pos)> CopyModels() => _mirrors.Values.Where(m => Peds.Exists(m.Ped)).Select(m => (m.Model, Peds.Position(m.Ped)));
         public IEnumerable<int> CopyHandles() => _mirrors.Values.Select(m => m.Ped).Where(Peds.Exists);
 
         public int VehicleHandle(ushort id) => id != 0 && _vehicles.TryGetValue(id, out var mv) && Peds.Exists(mv.Veh) ? mv.Veh
@@ -690,7 +601,8 @@ namespace RDR2Coop.Mod
             {
                 case EntityAction.Scenario:
                     if (!changed) break;
-                    PlayScenario(m.Ped, scenario, at, e.Heading);
+                    ENTITY._SET_ENTITY_COORDS_AND_HEADING(m.Ped, at, e.Heading, false, false, false);
+                    TASK.TASK_START_SCENARIO_IN_PLACE_HASH(m.Ped, scenario, -1, true, 0, e.Heading, false);
                     break;
                 case EntityAction.HandsUp:
                     if (changed) TASK.TASK_HANDS_UP(m.Ped, -1, 0, -1, false);
@@ -715,7 +627,7 @@ namespace RDR2Coop.Mod
         void Fire(Mirror m, EntityState e, int count, IDictionary<byte, Puppet> puppets, long now)
         {
             Vector3 target = TargetOf(e, puppets);
-            if (e.Aim != 0)   // at a player (us or a partner's stand-in): over the head; the owner's game does the damage
+            if (e.Aim == _myId)
             {
                 var from = Peds.Position(m.Ped);
                 var dir = target - from;
@@ -766,7 +678,7 @@ namespace RDR2Coop.Mod
             return g == _neutralGroup || g == _hostileGroup;
         }
 
-        internal static void SuppressAmbient()
+        static void SuppressAmbient()
         {
             PED._SET_AMBIENT_PED_DENSITY_MULTIPLIER_THIS_FRAME(0f);
             PED.SET_SCENARIO_PED_DENSITY_MULTIPLIER_THIS_FRAME(0f);
@@ -789,10 +701,6 @@ namespace RDR2Coop.Mod
             if (me.IsOnMount && me.CurrentMount != null) keep.Add(me.CurrentMount.Handle);
             var horse = Game.Player.ActiveHorse;
             if (horse != null) keep.Add(horse.Handle);
-            // Our horse by every name the game has for it (the saddle horse alone missed some players' horses: 29 Oct,
-            // guests who couldn't call or ride theirs), and any horse we stand at (getting on it).
-            keep.Add(PLAYER._GET_ACTIVE_HORSE_FOR_PLAYER(PLAYER.PLAYER_ID()));
-            keep.Add(PED._GET_LAST_MOUNT(me.Handle));
 
             var mePos = me.Position;
             int orphans = 0, hid = 0;
@@ -802,20 +710,6 @@ namespace RDR2Coop.Mod
                 if (IsCopyGroup(h)) orphans++;   // a copy we lost track of: a mission entity, but ours to delete
                 else
                 {
-                    uint model = ENTITY.GET_ENTITY_MODEL(h);
-                    if (PED._IS_THIS_MODEL_A_HORSE(model))
-                    {
-                        if (Peds.Position(h).DistanceTo(mePos) < 3f) continue;   // we may be getting on it
-                        // A wagon's team: a copied wagon's horses came with it (not copies of their own), and hiding them
-                        // left a horseless wagon driving along (George in Kant's game 30 Oct). Our own wagons go with
-                        // their horses below.
-                        if (PED._GET_VEHICLE_DRAFT_HORSE_IS_ATTACHED_TO(h) != 0) continue;
-                        // Hidden, never removed: a removed camp horse was put straight back by the camp script, once a
-                        // second (guests in the host's story stand in the same camp, 29 Oct); hidden ones come back
-                        // when our game runs the area again. Logged once per breed.
-                        if (Hide(h) && _horseLogged.Add((int)model)) CoopScript.Log($"guest clear: horses of breed {model:X8} hidden while showing the owner's world (ours kept: saddle {horse?.Handle ?? 0}, active {PLAYER._GET_ACTIVE_HORSE_FOR_PLAYER(PLAYER.PLAYER_ID())}, last {PED._GET_LAST_MOUNT(me.Handle)})");
-                        continue;
-                    }
                     if (TableGames.CardPlayer(h)) continue;
                     if (PED._GET_VEHICLE_DRAFT_HORSE_IS_ATTACHED_TO(h) != 0) continue;   // goes with its wagon below
                     if (Peds.Position(h).DistanceTo(mePos) > ClearRadius) continue;
@@ -829,9 +723,7 @@ namespace RDR2Coop.Mod
                 Peds.Delete(h);
             }
             if (orphans > 0) CoopScript.Log($"swept {orphans} orphan copies");
-            if (hid > 0) CoopScript.Log($"hid {hid} of our own script-made people (camp, side quests) while showing the owner's world ({_hidden.Count} hidden)" +
-                                        (_reshown > 0 ? $", {_reshown} of them again (their script had shown them)" : ""));
-            _reshown = 0;
+            if (hid > 0) CoopScript.Log($"hid {hid} of our own script-made people (camp, side quests) while showing the owner's world ({_hidden.Count} hidden)");
 
             var keepVehicles = new HashSet<int>(_vehicles.Values.Select(v => v.Veh)) { Peds.VehicleOf(me.Handle) };
             foreach (int h in EntityScan.Vehicles(new[] { mePos }, ClearRadius))
@@ -859,17 +751,9 @@ namespace RDR2Coop.Mod
         }
 
         // One of our own script-made people out of sight: invisible, no collision, still. True if newly hidden.
-        int _reshown;   // hidden people their scripts showed again, hidden again this sweep (logged with it)
-
         bool Hide(int h)
         {
-            // Hidden before, but its script showed it again (a camp's people start their next chore visible and moving:
-            // George in a host's camp 30 Oct, "camp members, each doing their own stuff", twice over): hidden again.
-            if (!_hidden.Add(h))
-            {
-                if (!ENTITY.IS_ENTITY_VISIBLE(h)) return false;
-                _reshown++;
-            }
+            if (!_hidden.Add(h)) return false;
             ENTITY.SET_ENTITY_VISIBLE(h, false);
             ENTITY.SET_ENTITY_COLLISION(h, false, false);
             ENTITY.FREEZE_ENTITY_POSITION(h, true);
@@ -892,30 +776,13 @@ namespace RDR2Coop.Mod
             _hidden.Clear();
         }
 
-        // A copy horse we got on: no longer a copy (no group, no trap, no blip, not steered), and that id isn't copied again.
-        void Take(ushort id, Mirror m)
-        {
-            _mirrors.Remove(id);
-            _taken.Add(id);
-            Blips.Remove(ref m.Blip);
-            PED.SET_PED_RELATIONSHIP_GROUP_HASH(m.Ped, PED.GET_PED_RELATIONSHIP_GROUP_DEFAULT_HASH(m.Ped));
-            ENTITY.SET_ENTITY_INVINCIBLE(m.Ped, false);
-            ENTITY.SET_ENTITY_CAN_BE_DAMAGED(m.Ped, true);
-            // shortcut: it keeps the copy's big health pool (Peds.TrapHealth), so it's hard to kill; set a real horse's health if players notice
-            Peds.Ours.Add(m.Ped);   // never hidden or cleared as one of our own script-made people
-            CoopScript.Log($"copy horse {id} ({m.Model:X8}) taken: we rode off on it, it's ours now");
-        }
-
         public void Clear()
         {
             ShowHidden();
-            _taken.Clear();
             _looks.Clear();
             foreach (var id in _mirrors.Keys.ToList()) Remove(id);
             foreach (var id in _vehicles.Keys.ToList()) RemoveVehicle(id);
             foreach (var id in _trains.Keys.ToList()) RemoveTrain(id);
-            foreach (int old in _oldTrains) { int h = old; if (Peds.Exists(h)) DeleteTrain(ref h); }
-            _oldTrains.Clear();
             _lastStates = new List<EntityState>();
             if (_trainsOff) { VEHICLE.SET_RANDOM_TRAINS(true); _trainsOff = false; }
             _buffer.Clear();

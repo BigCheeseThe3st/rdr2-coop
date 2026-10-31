@@ -169,7 +169,7 @@ namespace RDR2Coop.Mod
 
         // Damage dealt by a ped since the last check (0 if none). `attacker`
         // restricts it to one ped; `ignore` skips one ped (friendly fire).
-        public static unsafe int TakeTrapped(int ped, int attacker, int ignore, out int bone, ICollection<int> ignoreAlso = null)
+        public static unsafe int TakeTrapped(int ped, int attacker, int ignore, out int bone)
         {
             bone = 0;
             int health = ENTITY.GET_ENTITY_HEALTH(ped);
@@ -179,7 +179,6 @@ namespace RDR2Coop.Mod
                 ? ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, attacker, true, true)
                 : ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ANY_PED(ped);
             if (ignore != 0 && ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, ignore, true, true)) byPed = false;
-            if (byPed && ignoreAlso != null) foreach (int h in ignoreAlso) if (ENTITY.HAS_ENTITY_BEEN_DAMAGED_BY_ENTITY(ped, h, true, true)) { byPed = false; break; }   // only once damaged: rare
 
             int b = 0;
             if (PED.GET_PED_LAST_DAMAGE_BONE(ped, &b)) bone = b;

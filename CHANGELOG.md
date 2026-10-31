@@ -3,7 +3,13 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
-## 0.9.0-beta.8.4.6 (beta, 31 Oct 2026) - protocol 13
+## 0.7.68 (31 Oct 2026) - protocol 13
+- The switch to the mod's own loader finishes in one start for players who
+  still had an older RDR2Coop.asi in the game folder: the game had that file
+  open, so it couldn't be replaced and the switch needed a second start. The
+  old file is now renamed (RDR2Coop.asi.old-...) and the new one put in place.
+
+## 0.7.67 (31 Oct 2026) - protocol 13
 - Everyone runs the mod's own loader now: the old ScriptHookRDR2DotNet version
   switches itself over the first time it starts, then asks you to restart the
   game. Your settings stay, and enRage 0.9.6 keeps working with co-op.
@@ -13,226 +19,137 @@ the server's relay.py together with the mod.
   ScriptHookRDR2DotNet off (ScriptHookRDRDotNet.asi.off). The installers do the
   same for everyone, enRage hosts included, and no longer delete your save
   backups in RDR2Coop\backup when they update.
+- Riding double works with your mount key: you were thrown off a partner's
+  horse within a second, because the key that sat you behind them is also the
+  game's dismount on a horse.
 - A partner's wagon stays with them: its copy in your game is held within
   about a metre, one stuck behind something jumps back into place after a
   second (one fell 50 m behind on screen before), and a new copy appears on the
   ground, not in the air.
-- A copied wagon keeps its horses (a guest saw the host's wagon drive along
-  with no team).
-- Guests in the host's story: when the game asks whether to bring back your
-  money, horse and items from the last session, joining waits for your answer.
-  Answering after you had joined brought back nothing. Your own story is also
-  saved before you go back into the host's.
-- The co-op menu no longer stops with "index out of range" when the server
-  list refreshes while it's open.
 - Closing the mod or pressing Insert no longer shows "Co-op error: The script
   was aborted".
 
-## 0.9.0-beta.8.4.5 (beta, 30 Oct 2026) - protocol 13
-- Riding double works with your mount key: you were thrown off a partner's
-  horse within a second, because the key that sat you behind them is also the
-  game's dismount on a horse.
-- Guests in the host's camp no longer see every camp member twice (your own
-  camp's people came back each time they started a new chore).
-- No more duplicate trains: the host sends a train once all its carriages have
-  loaded, and a guest's game removes an old copy's carriages with it.
-- Seated people and partners at a piano no longer float in mid-air: where your
-  game has no seat at that spot, they stand on the ground.
-- After the game kills you outright and the mod brings you back, Esc and the
-  map stay usable (needs testing).
-
-## 0.9.0-beta.8.4.4 (beta, 30 Oct 2026) - protocol 13
-- What a guest buys in the host's story comes home: every 2 minutes the mod
-  keeps the guest's own money, horse and items, and autosaves the guest's own
-  story on the way back. If the game crashed in the host's story, the next
-  start asks (Y/N) whether to bring back what you had there.
+## 0.7.66 (30 Oct 2026) - protocol 13
+Everything from the fixes betas 0.7.66-rc.1 to rc.3, plus:
 - Party down: if nobody revives you in 3 minutes, you bleed out and the game's
-  own death goes ahead (respawn, mission fail, bounty as usual). Before,
-  lawmen who kept shooting at a downed player meant you stayed down for good.
-  The "you're down" message counts down.
-- Party down: after the game kills you outright and the mod brings you back,
-  Esc, the map and the minimap no longer stay dead (needs testing).
-- The co-op menu's text can use the plain font: set GameFont=False under
-  [Visuals] in RDR2Coop.ini if the menu shows no text (a translation mod that
-  replaces the game's fonts).
-- A partner's boat floats on your water, not metres in the air, and a boat a
-  guest drives follows the host's own water level in the host's game.
-- F10 twice: every version offers the other ones (stable, the fixes beta, the
-  beta), each with a line on what it is.
+  own death goes ahead (respawn, mission fail, bounty as usual). Before, lawmen
+  who kept shooting at a downed player meant the fight never ended, so you
+  stayed down for good. The "you're down" message counts down.
+- F10 twice: every version offers the other tracks (stable, the fixes beta,
+  the beta), each with a line on what it is.
+- Boats a guest drives follow the host's own water level in the host's game
+  (the two games can disagree about it by metres).
 
-## 0.9.0-beta.8.4.3 (beta, 30 Oct 2026) - protocol 13
-- enRage saves its world again: with the mod's own loader every enRage save
-  failed ("Could not load file or assembly 'System.Security.Permissions'" in
-  enRage's log), so its nemeses, grudges and history started over each time
-  the game started. The loader now carries that library. Install the zip
-  (the RDR2Coop folder): the in-game update only swaps the mod file.
+From the fixes betas: enRage 0.9.6 works with co-op and enRage saves its world
+again on the mod's own loader; copied boats sit on your own water; a revived
+host no longer sits behind the black respawn screen; partners' weapons show;
+riding double holds at speed.
+
+## 0.7.66-rc.3 (fixes beta, 30 Oct 2026) - protocol 13
+- A partner's boat floats on your water: two games can disagree about the
+  water level in places (on the river by Saint Denis by about 9 m), and a
+  copied boat used to float that far in the air. Copied boats now sit on your
+  own game's water.
+
+## 0.7.66-rc.2 (fixes beta, 30 Oct 2026) - protocol 13
+- enRage saves its world again with the mod's own loader: since 0.7.6 every
+  enRage save failed ("Could not load file or assembly
+  'System.Security.Permissions'" in enRage's log), so its nemeses, grudges and
+  history started over each time the game started. The loader now carries
+  that library. Install this zip (the RDR2Coop folder): the in-game update
+  only swaps the mod file.
 - enRage 0.9.6 works with co-op (co-op patch 0.5.0, built in: put the official
   enRage 0.9.6 files in scripts\ as its own instructions say). enRage 0.9.5.2
   now runs without the co-op link: update enRage to 0.9.6.
+
+## 0.7.66-rc.1 (fixes beta, 30 Oct 2026) - protocol 13
+The fixes beta: the next stable version's small fixes, early. It updates in
+game to later fixes betas and then to stable 0.7.66 when it's out; it never
+moves you onto the big beta (0.9.0). F10 twice > "Switch to stable" goes back.
 - Party down: a host brought back from a death no longer sits behind the
-  game's black respawn screen after being revived, and a guest is no longer
-  told "the host is in a cutscene" and blocked from reviving them.
-
-## 0.9.0-beta.8.4.2 (beta, 30 Oct 2026) - protocol 13
-- Riding double holds at speed: the game threw the passenger off at a canter
-  or in a turn; now you stay on until your partner gets off, and you still
-  come off, tumbling, if their horse goes down or they're thrown.
+  game's black respawn screen (with the spinning revolver) after being
+  revived, and a guest is no longer told "the host is in a cutscene" and
+  blocked from reviving them.
 - Partners' weapons show: their stand-in often stayed empty-handed with some
-  weapons (the Cattleman, the M1899, the lasso); the mod now checks the weapon
-  is really in its hand and tries again until it is.
-- Guests in the host's story: if your connection drops, you stay in the
-  host's story for 30 s (your saves stay protected) and catch up when it's
-  back, instead of going to your own story and straight back in.
-- Guests in the host's story: if the game or the mod restarted while you were
-  being taken back to your own story, it now always finishes the job. Before,
-  a guest could be left in the host's story with saving unprotected.
-- When the host's story can't start because your save folder wasn't found,
-  the log now says why.
+  weapons (the Cattleman, the M1899, the lasso).
+- Riding double holds at speed: the game threw the passenger off at a canter
+  or in a turn; you still come off, tumbling, if the horse goes down.
+- On stable 0.7.66 and later, F10 twice > "Try the fixes beta" offers the next
+  fixes beta when there is one.
 
-## 0.9.0-beta.8.4.1 (beta, 29 Oct 2026) - protocol 13
-- Switch between stable and the beta from the co-op menu: F10 twice > More >
-  "Switch to stable 0.7.64" (on a beta) or "Try the beta" (on stable 0.7.64
-  and later). It downloads that version's mod file, checks it's signed by the
-  mod, and puts it in place; press Insert to load it. Your settings stay. Not
-  offered while you're a guest in the host's story. Some beta features also
-  need the beta's own download (the zip) the first time.
-- Riding double: sitting behind a partner on their horse no longer throws you
-  off after a second or two. Your game used to give their horse orders
-  directly while you sat on it; it now steers their stand-in in the saddle, as
-  the game does with a gang member and a passenger.
-- Guests in the host's story: the camp's horses near a guest are hidden (the
-  host's show instead) rather than removed, which the camp put straight back
-  every second.
+## 0.7.65 (29 Oct 2026) - protocol 13
+- The stable download now carries the beta's loader (RDR2Coop.asi and its
+  helper files), so "Try the beta" in the co-op menu gives you the whole beta,
+  including guests playing in the host's story and cutscenes for guests,
+  without a second download. Stable itself plays as before. Install this zip
+  once (RDR2Coop.asi and the RDR2Coop folder): the in-game update only swaps
+  the mod file, not the loader.
+- An enRage version the co-op patch doesn't fit is named in the log.
 
-## 0.9.0-beta.8.4 (beta, 29 Oct 2026) - protocol 13
-- Guests play in the host's story: about 8 seconds after a guest joins, the
-  guest's game switches to the host's story (camp, missions, progress) with
-  no Load Game, and keeps the guest's own character, money, clothes and
-  horse. The host's changes follow live while you play. Your own saves are
-  backed up first (RDR2Coop\backup) and guarded: anything the game saves
-  while you're in the host's story is moved aside and your own save put back,
-  and your own story comes back when you leave. New, so back up your saves
-  (Documents\Rockstar Games\Red Dead Redemption 2\Profiles) before trying
-  it. [Gameplay] HostWorld=No turns it off.
-- Bubbles (new, off by default, please test): each game keeps running the
-  world round its own player, and players near each other see each other's
-  people, horses, wagons and trains alongside their own; nothing a guest is
-  doing is wiped when the host rides up. Where two players' worlds overlap
-  there's one crowd, one set of trains and one of each gang member (the
-  host's). In the host's story missions guests near the host see the host's
-  world only, as before. Every player needs [Gameplay] Bubbles=Yes, or the
-  old shared area is used.
-- Guests and horses: a horse from the host's world that a guest gets on is
-  now the guest's to ride (it used to snap back to where it stood in the
-  host's game), and a guest's own horse is no longer cleared away.
-- Story missions know who's who: the mod reads each mission's own cast (story
-  missions, stranger missions and random encounters) for its allies and
-  enemies instead of guessing, and sends the mission's key people first.
-- A simpler RDR2Coop.ini: it now says up front that you only need to set your
-  Name and that the co-op menu (F10 twice, Games tab) joins and hosts games
-  and fills in the connection settings for you. The rest is grouped
-  (connection, hosting, extras) and the old [Games] section is gone. Existing
-  ini files keep working as they are.
-- A game's name typed into Server= (instead of the host's address) no longer
-  switches co-op off: the mod looks for a game with that name and joins it with
-  your Password, or tells you on screen to pick one in the Games tab.
-- Story cutscenes for guests: in a mission party, when the host's game plays a
-  story cutscene, each guest close by now watches the same cutscene in their
-  own game instead of a black screen. The host's character is played by the
-  host's stand-in and the people, horses and wagons by the copies a guest
-  already sees; anyone the scene needs that the host's game doesn't share, the
-  scene brings itself. It keeps time with the host's (it plays a little faster
-  or slower to catch up). If a cutscene won't play in a guest's game, the
-  black screen is back for that one. [Gameplay] Cutscenes=No turns it off.
-- The co-op menu (F10 twice) in the game's own pause-menu style: the game's
-  fonts and ink-brush panel, tabs at the top right switched with Q and E
-  (Session, Games, More), the list on the left and what the chosen row does
-  on the right, and the keys along the bottom. On an ultrawide screen it
-  keeps to the middle instead of stretching across it. The party list hides
-  while the menu is open.
-- The mod's own card and dice tables, contests and scoreboard are gone from
-  the menu: playing together is moving to the game's own mini-games, starting
-  with its poker ("Take a seat at the host's poker table"). The partner
-  actions (emote, ping, give money, watch a partner) are under Session.
-- Mission recordings, to make story missions sync properly: with beta logs
-  on, while a story mission runs in your game, the mod records how the
-  mission's own script memory changes (which values are people, vehicles or
-  map markers, who dies and who killed them, cutscenes and checkpoints) to
-  scripts\RDR2Coop.missions.log, which goes up with your other beta logs.
-  Game state only: nothing about you or your PC. It only reads, never writes,
-  and needs the mod's own loader (the main download, not the
-  ScriptHookRDR2DotNet build). [Testing] RecordMissions=No switches it off.
-  Needs the new RDR2Coop.asi from the zip (the one-press update keeps the old
-  loader, which can't do it: the log says so).
-- NPCs a partner kills die in the host's game too, again. A partner who
-  killed someone outright (fists, a finishing move, a big hit) told the host's
-  game, but the host threw that message away since beta.8 (it looked like too
-  much damage to be real), so the person lived on there, and on the partner's
-  screen dropped, vanished and came back (the log scan: 47 times in one of Big
-  Kitty's fights; "my friend kills them and they fall off the map"). Hits over
-  1000 damage now count as 1000 instead of being dropped.
-- In a story mission, the host's allies can't be hurt on partners' screens.
-  The host's game ignores partners' hits on its allies (hurting one fails the
-  mission), so on a partner's screen they only died and came back. The host
-  now marks them, and partners' copies of them can't be hurt (as the host's
-  own horse already was); they can be again if they turn on the players.
-- A copy that dies on a partner's screen but lives in the host's game gets
-  back up where it fell instead of vanishing and coming back somewhere else.
-  The host's game decides who dies.
-- First version (being tested): a partner plays at the game's OWN poker. The
-  host sits at one of the story's poker tables the usual way (hold E). A
-  partner within 10 m picks "Take a seat at <host>'s poker table" in the
-  co-op menu and plays one of the card players' seats: the host's game gives
-  them that seat's cards, and their moves replace the card player's (the
-  game deals and plays everything else as usual). The partner sees their two
-  cards, the stacks, the board and their moves; they play the seat's table
-  chips, not their own money; 40 s without a move, or getting up on their
-  turn, folds. Both players need this version. For testing:
-  [Testing] PokerTrace=Yes records the game's poker to
-  scripts\RDR2Coop.poker.log, and [Keys] PokerForceFold= makes the next card
-  player to act fold.
-- Loading a save no longer switches co-op off until the game restarts: the
-  game restarts its scripts on a load, and the loader tried to start .NET a
-  second time ("hostfxr_initialize_for_runtime_config failed: 0x1", "loader
-  idle"), so F10, Insert and every co-op key stopped. It now starts .NET once
-  and only starts the mod again. (In every 0.9.0 beta so far.)
-- Insert no longer makes enRage warn "two copies of enRage" (pointing at
-  System.Private.CoreLib.dll): the loader kept the old scripts in memory after
-  unloading them, so enRage saw its own last copy. Insert now waits until
-  they're gone before loading the scripts again (the loader log says whether
-  they went).
-- Poker at the game's own poker tables, together (first version, being
-  tested): stand at one of the story's poker tables, open the co-op menu (F10
-  twice) > Play cards or dice here > "Poker at this table". Partners within
-  10 m join from their co-op menu as for any mod table. Everyone sits in the
-  table's real chairs (the table's own card player moves out of a chair one of
-  you takes), the cards on the table are the game's card models (the town's
-  own deck), with face-down cards in front of everyone still in and the
-  cards turned up at a showdown, and your own two cards show at the bottom of
-  the screen with the game's card faces. The hand itself is the mod's poker,
-  dealt by whoever opened the table (as on the mod's other tables): the
-  game's own poker isn't started. The table's card players play too: the
-  ones still in their chairs are your opponents (Card player 1, 2... in the
-  panel; the host's game plays them), so you can play alone or with partners.
-  A card player in a chair one of you takes stands up and walks off, and the
-  game's own cards and chips on that table are hidden while yours are dealt.
-  Money won from or lost to them is real, as at the game's own tables. Up to
-  6 at a table (4 players at most).
-- A new look for the co-op menu (F10 twice): a header with the version and
-  who's in the session, the rows grouped under Session, Play together, More
-  and Games, a bar on the chosen row, servers in columns (players, where, or
-  why one can't be joined), and the keys along the bottom. Same keys and rows
-  as before; the password and search screens match.
-- Partners' dives show: diving into water, the sprinting dive and diving out
-  of the way of a horse, wagon or train. The diver's game sends the dive and
-  their stand-in makes it (a leap into the water or forward; dives away from
-  the nearest wagon or horse), and a dive into water no longer makes the
-  stand-in go limp mid-fall. Both players need this version. For testing, each
-  log says once what the game called your first dive of each kind, and
-  whether a partner's stand-in really made it.
-- An enRage version the co-op patch doesn't fit is now said on screen once,
-  20 s after the game starts ("enRage 0.9.5.3 isn't supported by the co-op
-  patch yet (it needs enRage 0.9.5.2)"), not only in the log.
+## 0.7.64 (29 Oct 2026) - protocol 13
+- Try the beta from the co-op menu: F10 twice > "Try the beta 0.9.0-beta.x".
+  It downloads the beta's mod file, checks it's signed by the mod, and puts it
+  in place; press Insert to load it. Your settings stay, and the beta's menu
+  (F10 twice > More) offers "Switch to stable" to come back the same way. Some
+  beta features (guests in the host's story, cutscenes for guests) also need
+  the beta's own download (the zip) once.
+
+## 0.7.63 (28 Oct 2026) - protocol 13
+- RDR2Coop.ini is clearer about what goes where. It now says up front that you
+  only need to set your Name: in the game, press F10 twice and the co-op menu
+  lists the games to join (or host your own), and fills in the connection
+  settings for you. Server= is explained as the host's address
+  (numbers like 86.12.34.56), not the game's name, and the rest is grouped
+  into connection, hosting and extras. Your existing ini keeps working as it
+  is; the new layout comes with fresh installs (or copy your Name and
+  Password into the new file).
+- A game's name typed into Server= no longer switches co-op off: the mod looks
+  for a game with that name and joins it with your Password, or tells you on
+  screen to pick one in the co-op menu (F10 twice).
+
+## 0.7.62 (27 Oct 2026) - protocol 13
+- Co-op logs on the stable version too, if you want: the mod asks once whether
+  to send your co-op logs to the developer, so bugs get found and fixed sooner
+  (Y or N on screen). Nothing is sent unless you say yes; addresses and
+  folders are removed first. Stable versions send every 30 minutes (and when
+  the mod stops or hits an error). F10 twice > Co-op logs switches it on or off.
+- The update notice comes while you play: the mod checks for a new version at
+  the start and every 30 minutes after, so you hear about an update without
+  restarting the game or pressing Insert.
+- Pressing Insert (reload) no longer leaves the old copy of the mod (and
+  enRage) running in the background with the mod's own loader, so enRage stops
+  warning about "other copies of enRage" after a reload. Comes with the enRage
+  co-op patch 0.4.3.
+
+## 0.7.61 (27 Oct 2026) - protocol 13
+- Loading a save no longer crashes the game with the mod's own loader (the
+  main download). A save load gives the mod a fresh start in the game, and
+  0.7.6 started the mod's .NET side again in a way it can't take, so the game
+  closed. The loader now always runs the mod's .NET side in the same place,
+  whatever the game does, so co-op carries on after a save loads. Players on
+  the ScriptHookRDR2DotNet build weren't affected.
+
+## 0.7.6 (27 Oct 2026) - protocol 13
+The 0.9.0 beta becomes the stable version: everything from 0.8.0-beta.1 to
+0.9.0-beta.8.1 below, plus two fixes. Plays with 0.6.3 and later (same protocol).
+- New since 0.7.3, in short: the mod loads itself (no .NET install; RDR2Coop.asi
+  + the RDR2Coop folder), the host's story missions as a mission party (guests'
+  shots count, a black screen with a message during the host's cutscenes, party
+  down and revive), partners' own clothes, their aiming, shots, crouching, what
+  they carry, wet and muddy clothes, ride double, shared waypoints, a party
+  list and names over heads, text chat, pings, emotes, giving money, card and
+  dice tables (poker, blackjack, dominoes, liar's dice), contests (races,
+  hunting, shooting, duels) and a scoreboard, trains, doors and crimes that
+  count for whoever did them, enRage's co-op patch applied in memory (no
+  installer), no double NPCs at camp, and the server list with a search.
+- Keys work after loading a save. With the mod's own loader, loading a save
+  made the game start the mod's scripts again, which the loader took for a
+  second start and left co-op off until the game restarted.
+- NPCs a partner kills outright (fists, a finishing move, a big hit) die in
+  the host's game too. Since 0.9.0-beta.8 the host's game threw that message
+  away as "too much damage to be real", so the person lived on there and, on
+  the partner's screen, dropped, vanished and came back. Hits over 1000 damage
+  now count as 1000 instead of being dropped.
 
 ## 0.9.0-beta.8.1 (beta, 26 Oct 2026) - protocol 13
 - Partners wear their own clothes again. Since 0.7.3 a partner always showed

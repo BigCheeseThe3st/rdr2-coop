@@ -278,6 +278,10 @@ namespace RDR2Coop.Mod
                 var asi = z.GetEntry(Top + "RDR2Coop.asi") ?? throw new IOException("no RDR2Coop.asi in the zip");
                 foreach (var e in z.Entries)
                     if (e.FullName.StartsWith(Top + "RDR2Coop/", StringComparison.Ordinal) && !e.FullName.EndsWith("/")) Extract(e, root, e.FullName.Substring(Top.Length));
+                // The game loaded an older RDR2Coop.asi at start (it refused to run beside this copy): a loaded file can't be
+                // overwritten but can be renamed (asphyxia's game, 31 Oct). Nothing loads a .asi.old-*.
+                string loaded = Path.Combine(root, "RDR2Coop.asi");
+                if (File.Exists(loaded)) File.Move(loaded, loaded + ".old-" + DateTime.UtcNow.Ticks);
                 Extract(asi, root, "RDR2Coop.asi");
             }
         }
