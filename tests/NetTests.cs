@@ -58,6 +58,9 @@ static class NetTests
         Run("shot counter: new shots across wrap, capped burst", ShotCounter);
         Run("aim: a point along the camera, re-aim only when it moves", AimPoints);
         Run("stance: one jump per jump, near them, one move at a time, then a level check", StanceJumps);
+        Run("stance: dives into water, the sprinting dive and diving out of the way", StanceDives);
+        Run("poker cards: the game's card models, faces and town decks", PokerCardNames);
+        Run("game poker: a guest at the game's own table: state, options, moves, the host's seat gate", GamePokerGuests);
         Run("stance: climbs wait (8 s at most), falls go limp once, breaks start nothing", StanceClimbsAndFalls);
         Run("v3 join packets round trip", JoinPackets);
         Run("vehicles + seats round trip, a full snapshot fits one packet", VehiclesRoundTrip);
@@ -77,8 +80,13 @@ static class NetTests
         Run("party down: the game's death only once every partner is down", PartyDownAll);
         Run("copies: a model the game refused is tried again after the wait, logged once a minute", RetryBookWaits);
         Run("hits: a gun's damage and the kill marker pass the owner's check, nothing else", HitDamageChecked);
+        Run("mission recordings: first read, changes, busy slots muted, a growing stack, the size cap", MissionTapeRecords);
+        Run("entity pick: key NPCs (mission cast, cutscene parts) first and from further away", KeyNpcsFirst);
+        Run("cutscene notice: round trip, the host as @, odd lines and names dropped, end, catch-up rate", CutsceneNotice);
+        Run("mission map: entries, ranges, roles and cutscene names parsed, odd entries dropped; the table has mudtown3", MissionMapParsed);
         Run("relay: a dropped host who prefers hosting gets the role back on rejoin, not on a first join", RelayPreferHostRejoin);
         Run("tables: our game goes out at the start, every 5 s, and as \"\" once at the end", TableNotices);
+        Run("tables: the house's card players sit, play, settle and make room for a partner", TableHouseBots);
         Run("tables: partners' games from known names only, forgotten after 15 s or when they leave", TablePartners);
         Run("tables: a stand-in sits once it reaches them, stays put, stands when they get up", TableSits);
         Run("activities: held through a restart, then over; partners' line cleaned", ActivityRules);
@@ -97,6 +105,11 @@ static class NetTests
         Run("door notices: round trip, fit one notice, hostile lines dropped", DoorNotices);
         Run("upnp: answers parsed, gateways told apart, only http locations", UpnpReplies);
         Run("browser search: any case, menu rows kept, typed text cleaned", BrowserSearch);
+        Run("doubles: companion keys round trip; our gang member hidden while the higher game's copy shows, back after 2 s; same model on the same spot; never by model for the gang", DoublesRules);
+        Run("bubbles: link at 320 m, hold to 390 m, never when away, no chains; the host spawns in an overlap; strict follow only in the host's mission", BubbleRules);
+        Run("host's world: full transfer with lost and shuffled pieces, a bad piece, SHA check, merge keeps the guest's own slots", WorldShareTransfer);
+        Run("host's world: changes as diff lines, own slots never sent or written, sums find a lost change, chunk resend fixes it", WorldShareDiffs);
+        Run("save guard: the guest's saves backed up, an autosave of the host's world moved aside and the original put back, new and missing files, crash marker", SaveGuardFiles);
         Run("room by name (Server= holding a room's name): exact name any case, else the only one containing it", RoomByName);
         Run("stats: counters add, share and parse, bad parts dropped", StatsRoundTrip);
         Run("score: kill and stats notices round trip, odd lines dropped, only the area's owner credits", ScoreRules);
@@ -175,20 +188,6 @@ static class NetTests
         Check(tv.location == "http://10.0.0.20:8080/desc.xml" && !tv.gateway, "another device's answer");
         Check(Upnp.ParseReply("HTTP/1.1 200 OK\r\nST: upnp:rootdevice\r\nLOCATION: file:///etc/passwd\r\n\r\n").location == null, "only http locations");
         Check(Upnp.ParseReply("garbage").location == null, "garbage");
-    }
-
-    static void RoomByName()
-    {
-        var rooms = new System.Collections.Generic.List<Room>
-        {
-            new Room { Name = "gamers", Address = "1.2.3.4", Port = 27460 },
-            new Room { Name = "Gamers Paradise", Address = "5.6.7.8", Port = 27460 },
-            new Room { Name = "Doggi's game", Address = "9.9.9.9", Port = 27460 },
-            new Room { Name = "gamers", HostHere = true },
-        };
-        Check(RoomList.FindByName(rooms, "GAMERS")?.Address == "1.2.3.4", "exact name, any case, before ones that only contain it");
-        Check(RoomList.FindByName(rooms, "doggi")?.Address == "9.9.9.9", "the only one containing it");
-        Check(RoomList.FindByName(rooms, "game") == null && RoomList.FindByName(rooms, "x") == null && RoomList.FindByName(rooms, "nobody") == null, "several, too short or none: null");
     }
 
     static void BrowserSearch()
@@ -813,7 +812,7 @@ static class NetTests
                                      "highcard -100 1 2 3", "highcard 100 1 2 3 4", "x1 100 1 2 3", "highcard 100 Infinity 2 3" })
             Check(!TableMsg.ParseOpen(bad, out _, out _, out _), "open refused: " + bad);
         Check(TableMsg.ParseSeats("3,5,7,9 4", out var ids, out int next) && ids.SequenceEqual(new byte[] { 3, 5, 7, 9 }) && next == 4, "seats parsed");
-        foreach (var bad in new[] { "3,5,7,9,11 1", "3,3 1", "0 1", "255 1", "3 0", "3", "3,x 1", "3,5 1 2", "-3 1", "", "3, 1" })
+        foreach (var bad in new[] { "3,5,7,9,11,13,15 1", "3,3 1", "0 1", "255 1", "3 0", "3", "3,x 1", "3,5 1 2", "-3 1", "", "3, 1" })
             Check(!TableMsg.ParseSeats(bad, out _, out _), "seats refused: " + bad);
         Check(TableMsg.ParsePay("5 -250 3", out byte p, out int c, out int h) && p == 5 && c == -250 && h == 3, "pay parsed");
         foreach (var bad in new[] { "5 -250", "0 1 1", "255 1 1", "5 2000000 1", "5 1 0", "5 1.5 1", "5 1 1 1", "x 1 1", "5 99999999999 1" })
@@ -846,8 +845,9 @@ static class NetTests
         host.OnNotice(9, "join 1-4", 2300); host.OnNotice(8, "join 1-4", 2300);
         Check(!host.Seats.Contains(9) && !host.Seats.Contains(8) && Said(host) == "", "too far away, or nowhere we can see: no seat");
         host.OnNotice(2, "join 1-4", 2400); Check(Said(host) == "255:seats 1-4 1,2 1", "asking again: the seats again");
-        foreach (byte id in new byte[] { 3, 4, 5 }) host.OnNotice(id, "join 1-4", 2500);
-        Check(host.Seats.SequenceEqual(new byte[] { 1, 2, 3, 4 }), "four seats at most");
+        foreach (byte id in new byte[] { 3, 4, 5, 6, 7 }) host.OnNotice(id, "join 1-4", 2500);
+        Check(host.Seats.SequenceEqual(new byte[] { 1, 2, 3, 4, 5, 6 }), "six seats at most (a story poker table's chairs)");
+        host.OnNotice(5, "leave 1-4", 2550); host.OnNotice(6, "leave 1-4", 2550);
         host.Notices();
         host.OnNotice(3, "leave 1-4", 2600); host.OnNotice(4, "leave 1-4", 2600); host.OnNotice(2, "leave 9-9", 2600);
         Check(host.Seats.SequenceEqual(new byte[] { 1, 2 }) && Said(host) == "255:seats 1-4 1,2,4 1\nseats 1-4 1,2 1", "leaves: seats again; another table's line ignored");
@@ -921,6 +921,43 @@ static class NetTests
         Check(went.Contains("1>255:seats 1-1 1,2,3 2") && went.Contains("2>1:cash 1-1 2000 2") && went.Contains("3>1:cash 1-1 250 2"), "5 s later: the next hand's cash");
         host.Tick(7500);
         Check(host.LastPublic.StartsWith("250 0 2:??,3:??") && host.Options.Count == 0, "dealt to the two who brought the stakes: " + host.LastPublic);
+    }
+
+    static void TableHouseBots()
+    {
+        var host = TableRun.Open(1, 30, () => new Poker(), 100, new Vec3(0, 0, 0), 0);
+        host.MyCash = 10_000;
+        host.PosOf = id => new Vec3(1, 0, 0);
+        host.MakeBotView = () => new Poker();
+        host.BotPick = Poker.BotPick;
+        host.SetBots(new byte[] { 202, 203 });
+        Check(host.Seats.SequenceEqual(new byte[] { 1, 202, 203 }), "two card players sit with the host");
+        int settled = 0, voided = 0;
+        long t = 0;
+        for (; t < 900_000 && settled < 4; t += 100)
+        {
+            host.Tick(t);
+            var opts = host.Options;
+            if (opts.Count > 0) host.Act(opts.Any(o => o.action == "check") ? "check" : opts.Any(o => o.action == "call") ? "call" : opts[0].action, t);
+            foreach (var (to, text) in host.Notices())
+            {
+                var pays = text.Split('\n').Where(l => l.StartsWith("pay ")).Select(l => l.Split(' ')).ToList();
+                if (pays.Count > 0 && pays.Sum(x => long.Parse(x[3])) != 0) voided++;
+                Check(!pays.Any(x => TableRun.IsBot(byte.Parse(x[2])) && long.Parse(x[3]) < -TableMsg.CashCap(100)), "a card player never loses more than it brought");
+            }
+            string note = host.TakeNote();
+            if (note != null && note.Contains("settled")) settled++;
+            if (note != null && note.Contains("void")) voided++;
+        }
+        Check(settled >= 4 && voided == 0, $"hands against the card players play out and settle ({settled} in {t / 1000} s, {voided} bad)");
+        // A partner joins a full table: the card player in the chair they take gets up.
+        host.SetBots(new byte[] { 201, 202, 203, 204, 205 });
+        Check(host.Seats.Count == TableMsg.MaxSeats, "the table is full: " + string.Join(",", host.Seats));
+        host.OnNotice(2, "join 1-30", t);
+        Check(host.Seats.Contains(2) && !host.Seats.Contains(201) && host.Seats.Count == TableMsg.MaxSeats, "the partner sits, the card player in chair 2 got up: " + string.Join(",", host.Seats));
+        host.SetBots(new byte[0]);
+        Check(host.Seats.SequenceEqual(new byte[] { 1, 2 }) && !host.Bots.Any(), "the card players can all leave");
+        Check(!TableRun.IsBot(1) && TableRun.IsBot(200) && !TableRun.IsBot(255), "bot ids");
     }
 
     static void TableTurnTimeout()
@@ -1153,7 +1190,7 @@ static class NetTests
               "an answer: raise or call: " + string.Join(", ", o.Select(x => x.label)));
         string good = g.Public();
         foreach (var bad in new[] { null, "", "garbage", good + " x", "100 0 1 - 1:5,2:5", "100 7 1 - 1:5,2:5 -", "100 1 1 - 1:5,2:0 -", "100 0 1 11,2,0 1:5,2:5 -", "100 0 1 3,7,0 1:5,2:5 -",
-                                     "100 0 1 3,2,5 1:5,2:5 -", "100 0 1 - 0:5,2:5 -", "100 0 1 - 1:5,1:5 -", "100 0 1 - 1:6,2:5 -", "100 0 1 - 1:5,2:5,3:5,4:5,5:5 -", "100 0 0 - 1:5,2:5 -",
+                                     "100 0 1 3,2,5 1:5,2:5 -", "100 0 1 - 0:5,2:5 -", "100 0 1 - 1:5,1:5 -", "100 0 1 - 1:6,2:5 -", "100 0 1 - 1:5,2:5,3:5,4:5,5:5,6:5,7:5 -", "100 0 0 - 1:5,2:5 -",
                                      "-100 0 1 - 1:5,2:5 -", "100 0 1 - 1:5,2:5 L,0,1,3,2,123", "100 0 1 - 1:5,2:5 L,0,1,3,2,123/178", "100 0 1 - 1:5,2:5 X,0,1,3,2,1/2", "100 0 1 - 1:5,2:5 L,0,9,3,2,1/2",
                                      "100 0 1 - 1:5,2:5 L,0,1,3,2,123456/1", "100 0 1 - 255:5,2:5 -" })
         {
@@ -1378,7 +1415,7 @@ static class NetTests
         var bad = new[] { null, "", "garbage", "100 0 6 -1 7 1:10:2,2:5:3 63.33.31 1 - -", "100 0 6 -1 7 1:10:2 63 -1 - - -", "100 5 6 -1 7 1:10:2,2:5:3 63 -1 - - -",
             "100 0 6 -1 7 1:10:2,2:5:3 63.73 -1 - - -", "100 0 6 -1 7 1:10:2,2:5:3 63.32.21 1 - - -", "100 0 6 -1 7 1:10:2,2:5:3 63.33 1 35 - -", "100 0 6 -1 7 1:10:2,1:5:3 63 -1 - - -",
             "0 0 6 -1 7 1:10:2,2:5:3 63 -1 - - -", "100 0 6 -1 7 1:10:2,2:5:3 63 -1 - - x0.5", "100 0 6 -1 7 1:10:2,2:5:3 63 -1 - - s9.5", "100 0 6 -1 7 1:10:2,2:5:3 63 -1 - - s0.5//",
-            "100 0 6 -1 7 1:10:2,2:5:3 63 9 - - -", "100 0 6 -1 7 0:10:2,2:5:3 63 -1 - - -", "100 0 99 -1 7 1:10:2,2:5:3 63 -1 - - -", "100 0 6 -1 7 1:10:2,2:5:3,3:0:0,4:0:0,5:0:0 63 -1 - - -" };
+            "100 0 6 -1 7 1:10:2,2:5:3 63 9 - - -", "100 0 6 -1 7 0:10:2,2:5:3 63 -1 - - -", "100 0 99 -1 7 1:10:2,2:5:3 63 -1 - - -", "100 0 6 -1 7 1:10:2,2:5:3,3:0:0,4:0:0,5:0:0,6:0:0,7:0:0 63 -1 - - -" };
         foreach (var s in bad)
         {
             var w = new Dominoes(); w.OnPublic(state); w.OnPrivate("7 35.64"); w.OnPublic(s);
@@ -1796,7 +1833,7 @@ static class NetTests
                                      "1 100 0 0 0 100 200 1 - 1:4950:50:50:p:As:0,2:4900:100:100:p:-:0", "1 100 0 0 0 100 200 1 - 1:99999999999:50:50:p:-:0,2:4900:100:100:p:-:0",
                                      "1 100 0 0 0 100 200 1 - 1:2000000:50:50:p:-:0,2:4900:100:100:p:-:0", "1 100 0 0 0 100 200 1 - 1:4950:-50:50:p:-:0,2:4900:100:100:p:-:0",
                                      "1 100 0 0 0 100 200 1 - 1:4950:50:50:p:-:0", "1 100 0 0 0 100 200 1 - 1:4950:50:50:p:-:0,2:4900:100:100:p:-",
-                                     "1 100 0 0 0 100 200 1 - 1:1:1:1:p:-:0,2:1:1:1:p:-:0,3:1:1:1:p:-:0,4:1:1:1:p:-:0,5:1:1:1:p:-:0", "1 100 0 0 0 100 200 1 - 1:4950:50:50:p:-:0,255:4900:100:100:p:-:0" })
+                                     "1 100 0 0 0 100 200 1 - 1:1:1:1:p:-:0,2:1:1:1:p:-:0,3:1:1:1:p:-:0,4:1:1:1:p:-:0,5:1:1:1:p:-:0,6:1:1:1:p:-:0,7:1:1:1:p:-:0", "1 100 0 0 0 100 200 1 - 1:4950:50:50:p:-:0,255:4900:100:100:p:-:0" })
         {
             var v = new Poker(); v.OnPublic(good); v.OnPublic(bad);
             Check(v.Options(1).Count == 5 && v.ToCall(1) == 50, "refused, the last good state kept: " + bad);
@@ -1938,7 +1975,7 @@ static class NetTests
             Velocity = new Vec3(3, -1, 0.5f), MountModel = 0x2B5D4F3C,
             MountPosition = new Vec3(-300.4f, 800.2f, 116f), MountHeading = 270f, Following = 2, Weapon = 0x169F59F7,
             Pose = PoseFlags.Crouching | PoseFlags.Aiming, Shots = 7, AimAt = new Vec3(-310f, 805f, 120.5f), Scenario = 0xAABBCCDD,
-            Carrying = 0x11223344, CarryKind = 1, Wet = 200, Dirt = 50, Health = 180, RidingWith = 3,
+            Carrying = 0x11223344, CarryKind = 1, Wet = 200, Dirt = 50, Health = 180, RidingWith = 3, VehicleOwner = 2,
         };
         var bytes = Protocol.State(s);
         var p = Protocol.Read(bytes, bytes.Length);
@@ -1952,12 +1989,15 @@ static class NetTests
         Check(r.Weapon == 0x169F59F7, "weapon in hand");
         Check(r.Pose == (PoseFlags.Crouching | PoseFlags.Aiming) && r.Shots == 7 && r.Scenario == 0xAABBCCDD && r.Carrying == 0x11223344
               && r.CarryKind == 1 && r.Wet == 200 && r.Dirt == 50 && r.Health == 180 && r.RidingWith == 3, "pose block");
+        Check(r.VehicleOwner == 2, "vehicle owner (bubbles)");
+        var v080 = Protocol.Read(bytes, bytes.Length - 1);   // a 0.8.0 - 0.9.0-beta.8 state: no vehicle owner on the end
+        Check(v080 != null && v080.State.RidingWith == 3 && v080.State.VehicleOwner == 0, "a state without the vehicle owner reads it as 0");
         Near(r.AimAt.Z, 120.5f, "aim point");
         // A state from 0.7.1 (weapon, no pose block) reads with default poses.
-        var v071 = Protocol.Read(bytes, bytes.Length - 28);
+        var v071 = Protocol.Read(bytes, bytes.Length - 29);
         Check(v071 != null && v071.State.Weapon == 0x169F59F7 && v071.State.Pose == PoseFlags.None && v071.State.Carrying == 0, "0.7.1 state");
         // A state from before 0.7.1 (no weapon on the end) still reads, with empty hands.
-        var old = Protocol.Read(bytes, bytes.Length - 28 - 4);
+        var old = Protocol.Read(bytes, bytes.Length - 29 - 4);
         Check(old != null && old.State.Seq == 42 && old.State.Weapon == 0, "old state without the weapon");
     }
 
@@ -1965,7 +2005,7 @@ static class NetTests
     {
         Check(Protocol.Read(new byte[] { 1, 2, 3, 4, 5, 6 }, 6) == null, "bad magic");
         var bytes = Protocol.State(At(1, 5));
-        Check(Protocol.Read(bytes, bytes.Length - 28 - 4 - 3) == null, "truncated state");   // into the fields every version sends (the weapon on the end is optional)
+        Check(Protocol.Read(bytes, bytes.Length - 29 - 4 - 3) == null, "truncated state");   // into the fields every version sends (the weapon on the end is optional)
         var hello = Protocol.Hello("Alice", false);
         Check(Protocol.Read(hello, hello.Length - 2) == null, "truncated name");
         var bad = (byte[])hello.Clone();
@@ -2181,7 +2221,7 @@ static class NetTests
     {
         var list = new System.Collections.Generic.List<EntityState>();
         for (ushort i = 1; i <= 24; i++) list.Add(Ent(i, i));
-        list[3] = new EntityState { Id = 4, MountId = 9, Flags = EntityFlags.Dead | EntityFlags.Hostile, Position = new Vec3(3, 2, 3) };
+        list[3] = new EntityState { Id = 4, MountId = 9, Flags = EntityFlags.Dead | EntityFlags.Hostile | EntityFlags.Protected, Position = new Vec3(3, 2, 3) };
         var w = Wire(new WorldSnapshot { Seq = 77, Entities = list }, out var packets);
         Check(packets.Count == 1 && packets[0].Length < Protocol.WorldPartBudget, "24 NPCs fit one small packet: " + packets[0].Length);
         Check(w.Seq == 77 && w.Entities.Count == 24, "header");
@@ -2191,7 +2231,7 @@ static class NetTests
         Check(e.Model == 0x53DD98DF && e.HealthPct == 80 && e.Weapon == 0xABCD && e.Aim == 2 && e.Shots == 250 && e.Outfit == 0xFEEDBEEF
               && e.Action == EntityAction.Scenario && e.Scenario == 0xC0FFEE11, "fields");
         var d = w.Entities[3];
-        Check(d.Dead && d.MountId == 9 && (d.Flags & EntityFlags.Hostile) != 0, "flags + mount");
+        Check(d.Dead && d.MountId == 9 && (d.Flags & EntityFlags.Hostile) != 0 && (d.Flags & EntityFlags.Protected) != 0, "flags (the top bit too) + mount");
         Check(Protocol.Read(packets[0], packets[0].Length - 5) == null, "truncated world ignored");
     }
 
@@ -2519,6 +2559,68 @@ static class NetTests
         Check(!StanceTracker.OffLevel(new Vec3(0, 0, 0), new Vec3(10, 0, 3f)), "far off: following catches it up");
     }
 
+    static void GamePokerGuests()
+    {
+        Check(GamePokerMsg.Card(14, 0) == "Ah" && GamePokerMsg.Card(10, 3) == "Tc" && GamePokerMsg.Card(-1, -1) == "-" && GamePokerMsg.Card(15, 0) == "-", "poker_sp's cards as text");
+        Check(GamePokerMsg.Face("Ah") == "hearts_a" && GamePokerMsg.Face("Tc") == "clubs_10" && GamePokerMsg.Face("2s") == "spades_2" && GamePokerMsg.Face("x") == null, "card faces");
+        var seats = new System.Collections.Generic.List<GamePokerMsg.Seat>();
+        for (int i = 0; i < 6; i++) seats.Add(new GamePokerMsg.Seat { Stack = 100 + i, Bet = i == 2 ? 4 : 0, Status = i == 5 ? -1 : 0, Cards = i == 3 ? "AhKd" : "-" });
+        string line = GamePokerMsg.State(3, 3, 4, new[] { "Qh", "Kh", "7h", "-", "-" }, seats);
+        Check(line.StartsWith("state 3 3 4 Qh,Kh,7h,-,- 100:0:0:- "), "a state line: " + line);
+        var view = new GamePokerView();
+        Check(view.OnState(line.Substring(6)) && view.MyTurn && view.ToCall == 4, "the guest's view: its turn, 4 to call");
+        var opts = view.Options();
+        Check(opts[0].action == "3 0" && opts.Any(o => o.action == "2 4") && opts.Last().action == "5 0" && opts.Any(o => o.label.StartsWith("All in")), "options: call, raises, all in, fold: " + string.Join(" | ", opts.Select(o => o.label)));
+        Check(view.Lines(i => "Card player " + (i + 1)).Any(l => l.text.StartsWith("You: $1.03")), "the panel shows our seat");
+        foreach (var bad in new[] { "3 3 4 Qh,Kh,7h,-", "3 9 4 Qh,Kh,7h,-,- " + string.Join(" ", Enumerable.Repeat("1:0:0:-", 6)), "3 3 4 Qh,Kh,7h,-,- " + string.Join(" ", Enumerable.Repeat("1:0:0:Zz9q", 6)),
+                                    "3 3 4 Qh,Kh,7h,-,- " + string.Join(" ", Enumerable.Repeat("-5:0:0:-", 6)), "7 3 4 Qh,Kh,7h,-,- " + string.Join(" ", Enumerable.Repeat("1:0:0:-", 6)) })
+            Check(!view.OnState(bad), "a hostile state refused: " + bad);
+        Check(GamePokerMsg.ParseAct("5 0", out int t, out int a) && t == 5 && GamePokerMsg.ParseAct("2 40", out t, out a) && a == 40, "moves parsed");
+        foreach (var bad in new[] { "2 0", "3 5", "9 0", "5", "2 -4", "x y" }) Check(!GamePokerMsg.ParseAct(bad, out _, out _), "a bad move refused: " + bad);
+        // The host's gate: hold the inbox empty on the seat's turn, then the guest's move; silent for 40 s: fold.
+        var gate = new SeatGate(3);
+        Check(gate.Frame(1, 0) == null, "not its turn: hands off");
+        Check(gate.Frame(3, 100) == (0, 0) && gate.Waiting, "its turn: held empty (the card player's choice wiped)");
+        gate.Move(GamePokerMsg.Call, 0);
+        Check(gate.Frame(3, 200) == (GamePokerMsg.Call, 0) && gate.Frame(3, 300) == (GamePokerMsg.Call, 0), "the guest's call, every frame of the turn");
+        gate.Move(GamePokerMsg.Fold, 0);
+        Check(gate.Frame(3, 400) == (GamePokerMsg.Call, 0), "a second move in the same turn ignored");
+        Check(gate.Frame(4, 500) == null && gate.Frame(3, 600) == (0, 0), "the next turn starts empty again");
+        Check(gate.Frame(3, 600 + SeatGate.TimeoutMs) == (GamePokerMsg.Fold, 0) && gate.TimedOut, "silent 40 s: folds");
+        var early = new SeatGate(2); early.Move(GamePokerMsg.Raise, 50);
+        Check(early.Frame(2, 0) == (0, 0), "a move sent before its turn doesn't count");
+    }
+
+    static void PokerCardNames()
+    {
+        int tenClubs = (8 << 2) | 3, aceSpades = 12 << 2, twoHearts = 1;
+        Check(PokerCards.Model(tenClubs, "val") == "p_crd_10_c01x_val", "the ten of clubs on a Valentine table");
+        Check(PokerCards.Model(aceSpades, "bla") == "p_crd_a_s01x_bla", "the ace of spades in Blackwater");
+        Check(PokerCards.Face(twoHearts) == "hearts_2" && PokerCards.Face(tenClubs) == "clubs_10", "faces on screen");
+        Check(PokerCards.Model(52, "val") == null && PokerCards.Face(-1) == null, "no card, no name");
+        Check(PokerCards.Back("rho") == "p_crd_01x_rho", "a card's back");
+        Check(PokerCards.DeckFor(new Vec3(-300f, 780f, 118f)) == "val" && PokerCards.DeckFor(new Vec3(-810f, -1310f, 43f)) == "bla", "towns' decks");
+        Check(PokerCards.DeckFor(new Vec3(0f, 0f, 0f)) == "val", "out in the wild: Valentine's");
+        foreach (int c in new[] { 0, 51, tenClubs }) Check(Poker.Cards(Poker.Code(c))[0] == c, "the engine's codes round trip");
+    }
+
+    static void StanceDives()
+    {
+        var t = new StanceTracker();
+        t.Update(PoseFlags.None, true, 0);
+        Check(t.Update(PoseFlags.Diving | PoseFlags.Jumping, true, 100) == (StanceStep.Dive | StanceStep.Hold), "a dive that the game also calls a jump: one dive, no jump");
+        StanceStep step = StanceStep.None;
+        for (long ms = 200; ms <= 1200; ms += 100) step |= t.Update(PoseFlags.Diving | PoseFlags.Falling, true, ms);
+        Check((step & StanceStep.Ragdoll) == 0, "falling into the water in a dive: no limp");
+        var e = new StanceTracker();
+        e.Update(PoseFlags.None, true, 0);
+        Check(e.Update(PoseFlags.Evading | PoseFlags.Diving, true, 100) == (StanceStep.Evade | StanceStep.Hold), "diving out of the way: evade, not a plain dive");
+        Check(e.Update(PoseFlags.Evading, true, 200) == StanceStep.Hold, "once");
+        var far = new StanceTracker();
+        far.Update(PoseFlags.None, false, 0);
+        Check(far.Update(PoseFlags.Diving, false, 100) == StanceStep.None, "out of reach: no dive");
+    }
+
     static void StanceClimbsAndFalls()
     {
         var t = new StanceTracker();
@@ -2642,6 +2744,228 @@ static class NetTests
         var ch = r.Handle(Protocol.Hello(name, prefer), from);
         var nonce = First(ch, PacketType.Challenge, from).Nonce;
         return First(r.Handle(Protocol.Auth(nonce, "pw"), from), PacketType.Welcome, from);
+    }
+
+    static void KeyNpcsFirst()
+    {
+        var all = new System.Collections.Generic.List<Candidate>();
+        for (int i = 1; i <= 10; i++) all.Add(new Candidate { Handle = i, Position = new Vec3(i, 0, 0) });
+        all.Add(new Candidate { Handle = 50, Position = new Vec3(200, 0, 0), Key = true });
+        all.Add(new Candidate { Handle = 60, Position = new Vec3(400, 0, 0), Key = true });
+        var picked = EntitySelector.Pick(all, new[] { new Vec3(0, 0, 0) }, 3);
+        Check(picked.Count == 3 && picked[0] == 50 && picked[1] == 1 && picked[2] == 2, "key one at 200 m first, then the nearest; past 300 m left out: " + string.Join(",", picked));
+    }
+
+    static void CutsceneNotice()
+    {
+        var m = new CutsceneMsg { Label = "MUD3_MCS2", Time = 12.5f, Origin = new Vec3(-121f, -28.6f, 95.8f), Rotation = new Vec3(0, 0, 90) };
+        m.Parts.Add(new System.Collections.Generic.KeyValuePair<string, ushort>("ARTHUR", CutsceneMsg.Host));
+        m.Parts.Add(new System.Collections.Generic.KeyValuePair<string, ushort>("CS_Uncle", 37));
+        m.Next.Add("Phase_2"); m.Next.Add("bad;name");
+        var r = CutsceneMsg.Read(m.Write() + "\npart bad;name 5\npart CS_X 0\npart CS_Y x\njunk");
+        Check(r != null && r.Label == "MUD3_MCS2" && r.List == "NormalStart" && Math.Abs(r.Time - 12.5f) < 0.01f && Math.Abs(r.Origin.Y + 28.6f) < 0.01f && r.Rotation.Z == 90, "scene line: " + m.Write().Split('\n')[0]);
+        Check(r.Next.Count == 1 && r.Next[0] == "Phase_2", "queued phases, bad names dropped: " + string.Join(",", r.Next));
+        Check(r.Parts.Count == 2 && r.Parts[0].Key == "ARTHUR" && r.Parts[0].Value == CutsceneMsg.Host && r.Parts[1].Value == 37, "two good parts, bad ones dropped: " + r.Parts.Count);
+        var e = CutsceneMsg.Read(new CutsceneMsg { Label = "MUD3_MCS2", End = true }.Write());
+        Check(e != null && e.End && e.Label == "MUD3_MCS2", "end");
+        Check(CutsceneMsg.Read("scene MUD3 NormalStart 5000 0 0 0 0 0 0") == null && CutsceneMsg.Read("scene MU D3 NormalStart 1 0 0 0 0 0 0") == null
+              && CutsceneMsg.Read("scene MUD3 NormalStart NaN 0 0 0 0 0 0") == null && CutsceneMsg.Read("scene a~b NormalStart 1 0 0 0 0 0 0") == null, "odd scene lines refused");
+        Check(CutsceneMsg.Rate(10f, 10.1f) == 1f && CutsceneMsg.Rate(11f, 10f) == 1.5f && CutsceneMsg.Rate(20f, 10f) == 3f && CutsceneMsg.Rate(10f, 12f) == 0.25f, "rate: in step 1, a second behind 1.5, far behind 3, ahead slower");
+    }
+
+    static void DoublesRules()
+    {
+        var keys = EntityKeys.Read(EntityKeys.Write(new[] { new System.Collections.Generic.KeyValuePair<int, ushort>(3, 41), new System.Collections.Generic.KeyValuePair<int, ushort>(15, 7) }) + " 99=5 x=1 4=0");
+        Check(keys != null && keys.Count == 2 && keys[3] == 41 && keys[15] == 7, "keys round trip, bad parts dropped");
+        Check(EntityKeys.Read("nope 1=2") == null, "not a keys notice");
+        var d = new Doubles();
+        var own = new System.Collections.Generic.Dictionary<int, int> { { 3, 1001 }, { 15, 1002 } };   // Hosea (3) and John (15), ours
+        var shop = new LocalPed { Handle = 2001, Model = 0xAAAA, Position = new Vec3(10, 10, 0) };
+        var far = new LocalPed { Handle = 2002, Model = 0xBBBB, Position = new Vec3(50, 0, 0) };
+        var gangByModel = new LocalPed { Handle = 1002, Model = 0xCCCC, Position = new Vec3(0, 0, 0) };   // John by model only: not a pairing
+        var copies = new System.Collections.Generic.List<CopyPed> { new CopyPed { Model = 0xAAAA, Position = new Vec3(11, 10, 0) }, new CopyPed { Model = 0xBBBB, Position = new Vec3(60, 0, 0) }, new CopyPed { Model = 0xCCCC, Position = new Vec3(0, 1, 0) } };
+        var hide = d.Decide(own, new[] { 3 }, new[] { shop, far, gangByModel }, copies, 1000);
+        Check(hide.SetEquals(new[] { 1001, 2001 }), "Hosea by the registry and the shopkeeper on the same spot hidden; the far one and John (no key) not: " + string.Join(",", hide));
+        hide = d.Decide(own, new int[0], new LocalPed[0], new CopyPed[0], 2500);
+        Check(hide.SetEquals(new[] { 1001, 2001 }), "the copies gone 1.5 s: still hidden (grace)");
+        hide = d.Decide(own, new int[0], new LocalPed[0], new CopyPed[0], 3100);
+        Check(hide.Count == 0, "gone over 2 s: shown again");
+    }
+
+    static void BubbleRules()
+    {
+        var me = new Vec3(0, 0, 0);
+        Check(Bubbles.Linked(me, new OtherPlayer { Position = new Vec3(300, 0, 0) }, false), "300 m: linked");
+        Check(!Bubbles.Linked(me, new OtherPlayer { Position = new Vec3(350, 0, 0) }, false), "350 m and not linked before: not linked");
+        Check(Bubbles.Linked(me, new OtherPlayer { Position = new Vec3(350, 0, 0) }, true), "350 m, linked before: holds");
+        Check(!Bubbles.Linked(me, new OtherPlayer { Position = new Vec3(430, 0, 0) }, true), "430 m: unlinked");
+        Check(!Bubbles.Linked(me, new OtherPlayer { Position = new Vec3(10, 0, 0), Away = true }, true), "away: never linked");
+        // H at 0, A at 300, B at 600: A links to both, B only to A
+        var h = new Vec3(0, 0, 0); var a = new Vec3(300, 0, 0); var b = new Vec3(600, 0, 0);
+        Check(Bubbles.Linked(a, new OtherPlayer { Position = h }, false) && Bubbles.Linked(a, new OtherPlayer { Position = b }, false)
+              && !Bubbles.Linked(b, new OtherPlayer { Position = h }, false), "a line H-A-B: no chain from B to H");
+        var linked = new System.Collections.Generic.Dictionary<byte, OtherPlayer> { { 1, new OtherPlayer { Position = new Vec3(150, 0, 0) } } };
+        Check(Bubbles.BlockSpawning(2, me, 1, linked), "guest 150 m from the host: the guest stops spawning");
+        Check(!Bubbles.BlockSpawning(1, me, 1, new System.Collections.Generic.Dictionary<byte, OtherPlayer> { { 2, new OtherPlayer { Position = new Vec3(10, 0, 0) } } }), "the host never stops for a guest");
+        Check(!Bubbles.BlockSpawning(2, me, 1, new System.Collections.Generic.Dictionary<byte, OtherPlayer> { { 1, new OtherPlayer { Position = new Vec3(250, 0, 0) } } }), "linked but 250 m from the host: the guest spawns its own");
+        Check(Bubbles.BlockSpawning(3, me, 1, new System.Collections.Generic.Dictionary<byte, OtherPlayer> { { 2, new OtherPlayer { Position = new Vec3(50, 0, 0) } } })
+              && !Bubbles.BlockSpawning(2, me, 1, new System.Collections.Generic.Dictionary<byte, OtherPlayer> { { 3, new OtherPlayer { Position = new Vec3(50, 0, 0) } } }), "two guests: the lower id spawns");
+        Check(Bubbles.StrictFollow(false, true, true, true) && !Bubbles.StrictFollow(true, true, true, true) && !Bubbles.StrictFollow(false, false, true, true)
+              && !Bubbles.StrictFollow(false, true, false, true) && !Bubbles.StrictFollow(false, true, true, false), "strict follow only for a party guest near the host in the host's story mission");
+    }
+
+    static ulong[] TestWorld(int seed)
+    {
+        var r = new Random(seed);
+        var w = new ulong[WorldLayout.Total];
+        for (int i = 0; i < w.Length; i++) w[i] = r.Next(4) == 0 ? (ulong)r.Next() : (ulong)(i % 7);   // compressible, like save globals
+        return w;
+    }
+
+    static void WorldShareTransfer()
+    {
+        var host = TestWorld(1);
+        var packed = WorldShare.Pack(host);
+        Check(packed.Length < host.Length * 8 / 2, $"deflated: {packed.Length} of {host.Length * 8} bytes");
+        var pieces = WorldShare.Pieces(7, packed, 0x0D7114C9);
+        Check(pieces.All(l => l.Length < NoticeMsg.MaxBytes), "every piece fits a notice: longest " + pieces.Max(l => l.Length));
+        var asm = new WorldStateAssembler();
+        var order = Enumerable.Range(0, pieces.Count).OrderBy(i => (i * 7919) % pieces.Count).ToList();
+        var lost = new System.Collections.Generic.HashSet<int>(order.Where((i, k) => k % 10 == 3));   // 10% lost
+        ulong[] got = null;
+        foreach (int i in order) if (!lost.Contains(i)) got = asm.Add(pieces[i]) ?? got;
+        Check(got == null && asm.Missing().Count == lost.Count && asm.Missing().All(lost.Contains), "lost pieces listed: " + asm.Missing().Count);
+        foreach (int i in asm.Missing().ToList()) got = asm.Add(pieces[i]) ?? got;
+        Check(got != null && got.SequenceEqual(host) && asm.Model == 0x0D7114C9, "rebuilt byte for byte after the resends");
+        var bad = new WorldStateAssembler();
+        var tampered = pieces.Select((l, i) => i == 2 ? l.Substring(0, l.Length - 4) + (l.EndsWith("AAAA") ? "BBBB" : "AAAA") : l).ToList();
+        ulong[] b2 = null;
+        foreach (var l in tampered) b2 = bad.Add(l) ?? b2;
+        Check(b2 == null, "a damaged piece fails the SHA check: nothing used");
+        var mine = TestWorld(2);
+        var merged = WorldLayout.Merge(host, mine);
+        Check(merged[11135 - WorldLayout.First] == mine[11135 - WorldLayout.First] && merged[26796 - WorldLayout.First + 5] == mine[26796 - WorldLayout.First + 5]
+              && merged[12106 - WorldLayout.First] == host[12106 - WorldLayout.First] && merged[4324 - WorldLayout.First] == host[4324 - WorldLayout.First],
+              "merge: honor and outfits are the guest's, mission data and camp the host's");
+        Check(WorldShare.Unpack(WorldShare.Pack(new ulong[10])) == null, "a blob of the wrong size is refused");
+    }
+
+    static void WorldShareDiffs()
+    {
+        var host = TestWorld(3);
+        var old = (ulong[])host.Clone();
+        var guest = (ulong[])host.Clone();
+        host[4324 - WorldLayout.First] = 37;             // camp
+        host[12106 - WorldLayout.First + 10] = 1;        // a mission flag
+        host[12106 - WorldLayout.First + 12] = 1;        // close by: same run
+        host[11135 - WorldLayout.First] = 99;            // honor: the guest's own, never sent
+        for (int i = 0; i < 300; i++) host[20710 - WorldLayout.First + i] = (ulong)(1000 + i);   // a long run, split over items
+        var lines = WorldShare.Diff(1, old, host);
+        Check(lines.All(l => l.Length < NoticeMsg.MaxBytes), "diff lines fit notices");
+        foreach (var l in lines) Check(WorldShare.Apply(l, guest) != null, "applies: " + l.Substring(0, Math.Min(40, l.Length)));
+        Check(guest[4324 - WorldLayout.First] == 37 && guest[12106 - WorldLayout.First + 12] == 1 && guest[20710 - WorldLayout.First + 299] == 1299, "the guest has the host's changes");
+        Check(guest[11135 - WorldLayout.First] == old[11135 - WorldLayout.First], "the guest's honor untouched");
+        Check(WorldShare.Diff(2, host, host).Count == 0, "nothing changed, nothing sent");
+        Check(WorldShare.Apply("diff 1 11135+1=" + Convert.ToBase64String(BitConverter.GetBytes(5UL)), guest).Count == 0 && guest[11135 - WorldLayout.First] == old[11135 - WorldLayout.First],
+              "a forged change to the guest's own slot is ignored");
+        Check(WorldShare.Apply("diff 1 39+1=AAAAAAAAAAA=", guest) == null && WorldShare.Apply("diff x", guest) == null && WorldShare.Apply("diff 1 40+2=AAAAAAAAAAA=", guest) == null, "odd lines refused");
+        // a lost change: sums find the chunk, the chunk resend fixes it
+        host[17504 - WorldLayout.First + 3] = 4242;
+        var sums = WorldShare.Sums(3, host);
+        var bad = sums.SelectMany(l => WorldShare.Mismatches(l, guest)).ToList();
+        int chunk = (17504 - WorldLayout.First + 3) / WorldLayout.ChunkSlots;
+        Check(bad.Count == 1 && bad[0] == chunk, "sums point at the one chunk with the lost change: " + string.Join(",", bad));
+        foreach (var l in WorldShare.Chunk(4, host, chunk)) WorldShare.Apply(l, guest);
+        Check(sums.SelectMany(l => WorldShare.Mismatches(l, guest)).Count() == 0 && guest[17504 - WorldLayout.First + 3] == 4242, "after the chunk resend every sum matches");
+    }
+
+    static void SaveGuardFiles()
+    {
+        string root = System.IO.Path.Combine(System.IO.Path.GetTempPath(), "rdr2coop-guard-" + Guid.NewGuid().ToString("N"));
+        string profile = System.IO.Path.Combine(root, "Profiles", "83B8EED1"), backups = System.IO.Path.Combine(root, "backup");
+        System.IO.Directory.CreateDirectory(profile);
+        try
+        {
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "SRDR30000"), "manual save");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "SRDR30015"), "my autosave");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "cfg.dat"), "settings");
+            var g = SaveGuard.Begin(profile, backups, "t1");
+            Check(System.IO.File.Exists(System.IO.Path.Combine(backups, SaveGuard.Marker)) && System.IO.File.ReadAllText(System.IO.Path.Combine(g.Backup, "SRDR30015")) == "my autosave"
+                  && !System.IO.File.Exists(System.IO.Path.Combine(g.Backup, "cfg.dat")), "backup of the saves only, marker written");
+            Check(g.Check().Count == 0, "nothing written: nothing done");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "SRDR30015"), "HOST WORLD autosave, longer");
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "SRDR30003"), "HOST WORLD bed save");
+            System.IO.File.Delete(System.IO.Path.Combine(profile, "SRDR30000"));
+            var done = g.Check();
+            Check(System.IO.File.ReadAllText(System.IO.Path.Combine(profile, "SRDR30015")) == "my autosave", "autosave: the guest's own is back");
+            Check(!System.IO.File.Exists(System.IO.Path.Combine(profile, "SRDR30003")), "a new save of the host's world is moved out of the profile");
+            Check(System.IO.File.ReadAllText(System.IO.Path.Combine(profile, "SRDR30000")) == "manual save", "a missing save is put back");
+            var aside = System.IO.Directory.GetFiles(System.IO.Path.Combine(g.Backup, "host-world"));
+            Check(aside.Length == 2 && aside.Any(f => System.IO.File.ReadAllText(f).StartsWith("HOST WORLD autosave")), "nothing deleted: the host's world saves kept aside");
+            Check(done.Count == 3, "one line per file: " + string.Join(" | ", done));
+            System.IO.File.WriteAllText(System.IO.Path.Combine(profile, "SRDR30015"), "HOST WORLD again");   // then a crash
+            var pending = SaveGuard.Pending(backups);
+            Check(pending != null && pending.Backup == g.Backup && pending.Profile == profile, "after a crash the marker finds the join");
+            pending.End(backups);
+            Check(System.IO.File.ReadAllText(System.IO.Path.Combine(profile, "SRDR30015")) == "my autosave" && SaveGuard.Pending(backups) == null, "the crash restore puts the guest's own back and clears the marker");
+        }
+        finally { try { System.IO.Directory.Delete(root, true); } catch (Exception) { } }
+    }
+
+    static void RoomByName()
+    {
+        var rooms = new System.Collections.Generic.List<Room>
+        {
+            new Room { Name = "gamers", Address = "1.2.3.4", Port = 27460 },
+            new Room { Name = "Gamers Paradise", Address = "5.6.7.8", Port = 27460 },
+            new Room { Name = "Doggi's game", Address = "9.9.9.9", Port = 27460 },
+            new Room { Name = "gamers", HostHere = true },
+        };
+        Check(RoomList.FindByName(rooms, "GAMERS")?.Address == "1.2.3.4", "exact name, any case, before ones that only contain it");
+        Check(RoomList.FindByName(rooms, "doggi")?.Address == "9.9.9.9", "the only one containing it");
+        Check(RoomList.FindByName(rooms, "game") == null && RoomList.FindByName(rooms, "x") == null && RoomList.FindByName(rooms, "nobody") == null, "several, too short or none: null");
+    }
+
+    static void MissionMapParsed()
+    {
+        var all = MissionMap.Parse(new[] { "m1|194:a:CS_Uncle/uncle;218:ek:MUD3_Duellist;224:m;8756+12x3:e;x:a;5+0x3:a;579::WAGON03X", "bad" });
+        var m = all["m1"];
+        Check(all.Count == 1 && m.Count == 5, "five good entries, one mission: " + m.Count);
+        Check(m[0].Start == 194 && m[0].Role == MissionRole.Ally && m[0].Names.Length == 2 && m[0].Names[1] == "uncle", "an ally with two names");
+        Check(m[1].Role == (MissionRole.Enemy | MissionRole.KillerChecked) && MissionMap.Side(m[1].Role) == MissionRole.Enemy, "an enemy whose killer is checked");
+        Check(MissionMap.Side(m[2].Role) == MissionRole.None, "a slot that changes side has no sure side");
+        Check(string.Join(",", MissionMap.Indices(m[3])) == "8756,8768,8780", "a range: " + string.Join(",", MissionMap.Indices(m[3])));
+        Check(m[4].Role == MissionRole.None && m[4].Names[0] == "WAGON03X", "a prop with a cutscene name and no side");
+        var mud = MissionMap.Slots("mudtown3");
+        Check(mud != null && mud.Exists(s => s.Start == 194 && s.Role == MissionRole.Ally && Array.IndexOf(s.Names, "CS_Uncle") >= 0), "the table: Uncle in slot 194 of mudtown3 (as recorded in the game)");
+    }
+
+    static void MissionTapeRecords()
+    {
+        var lines = new System.Collections.Generic.List<string>();
+        var tape = new MissionTape(lines.Add);
+        var mem = new ulong[8];
+        mem[2] = 0x1F; mem[5] = 70000;
+        tape.Start(1000, "mudtown3", 0xABCDEF01, 9000, 8, mem, 8);
+        Check(lines[0] == "M 1000 start mudtown3 abcdef01 size 9000 sp 8 read 8" && lines[1] == "S 1000 2=1f 5=11170", "start line and the non-zero slots: " + string.Join(" | ", lines));
+        mem[5] = 70001;
+        var changed = tape.Changes(1500, mem, 8);
+        Check(changed.Count == 1 && changed[0] == 5 && lines[2] == "C 1500 5=11170>11171", "a change: " + lines[lines.Count - 1]);
+        Check(tape.Changes(2000, mem, 8).Count == 0 && lines.Count == 3, "nothing changed, nothing written");
+        for (int i = 0; i <= MissionTape.BusyAfter; i++) { mem[3] = (ulong)i + 1; tape.Changes(2500 + i, mem, 8); }
+        Check(lines[lines.Count - 1] == $"B {2500 + MissionTape.BusyAfter} 3" && lines.Count(l => l.StartsWith("C ") && l.Contains(" 3=")) == MissionTape.BusyAfter,
+              "a timer slot is written BusyAfter times, then muted: " + lines[lines.Count - 1]);
+        int before = lines.Count;
+        mem[3] = 999;
+        Check(tape.Changes(9000, mem, 8).Count == 0 && lines.Count == before, "a muted slot isn't written again");
+        var grown = new ulong[10]; Array.Copy(mem, grown, 8); grown[9] = 7;
+        var c2 = tape.Changes(9500, grown, 10);
+        Check(c2.Count == 1 && c2[0] == 9 && lines[lines.Count - 1] == "C 9500 9=0>7", "a grown stack: new slots count from 0");
+        var big = new System.Collections.Generic.List<string>();
+        var full = new MissionTape(big.Add);
+        var huge = new ulong[100000]; for (int i = 0; i < huge.Length; i++) huge[i] = (ulong)i * 0x10000001UL + 1;
+        full.Start(0, "x", 1, 100000, 100000, huge, 100000);
+        Check(full.Full && big[big.Count - 1].StartsWith("F full at") && !full.Line("more"), "the cap: a last line says so, then nothing more");
     }
 
     static void HitDamageChecked()

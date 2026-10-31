@@ -12,7 +12,7 @@ namespace RDR2Coop.Mod
 {
     sealed class MissionProbe
     {
-        static readonly string[] Names =
+        internal static readonly string[] Names =
         {
             "winter1", "winter2", "winter4", "mudtown1", "mudtown2", "mudtown3", "mudtown3b", "mudtown4", "mudtown5",
             "mary1", "mary3", "saloon1", "utopia1", "utopia2", "sean1", "bounty1", "reverend1", "hunting1", "feud1",
@@ -37,10 +37,15 @@ namespace RDR2Coop.Mod
         // self-check says they fit this game.
         const int StoryMissionTable = 1835011, StoryMissionSize = 74;   // [79]: .f_3 script name
         const int StageInfo = 1572864;          // .f_8 mission record, .f_9 checkpoint, .f_10 next stage
-        const int SceneHandle = 43800, SceneLabel = 43802;   // the anim scene story cutscenes play in
+        const int SceneHandle = 43800, SceneLabelGlobal = 43802;   // the anim scene story cutscenes play in
 
         public static bool GlobalsOk { get; private set; }
         public static bool InMissionScene { get; private set; }   // a story cutscene (anim scene) is playing
+        public static int Scene { get; private set; }             // ... its anim scene
+        public static string SceneLabel { get; private set; }     // ... and label (cutscene@<label>)
+        // Testing ([Testing] CutsceneAsStory, Mod/CutsceneTest.cs): a scene the test plays counts as a story cutscene of TestMission.
+        internal static int TestScene;
+        internal static string TestLabel, TestMission;
         public static bool StoryMission => _storyMission;
         static bool _storyMission;
         int _lastCheckpoint = -2;
@@ -86,9 +91,11 @@ namespace RDR2Coop.Mod
         // globals. Read-only.
         void ReadStage()
         {
-            int scene = GInt(SceneHandle);
+            int scene = TestScene != 0 ? TestScene : GInt(SceneHandle);
             InMissionScene = scene != 0 && ANIMSCENE.DOES_ANIM_SCENE_EXIST(scene) && ANIMSCENE.IS_ANIM_SCENE_RUNNING(scene, false);
-            string label = InMissionScene ? GlobalText(SceneLabel, 24) : null;
+            Scene = scene;
+            string label = !InMissionScene ? null : TestScene != 0 ? TestLabel : GlobalText(SceneLabelGlobal, 24);
+            SceneLabel = label;
             if (label != _lastScene)
             {
                 CoopScript.Log(label != null ? $"story cutscene playing: {label}" : $"story cutscene over: {_lastScene}");
