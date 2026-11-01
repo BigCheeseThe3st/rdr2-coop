@@ -17,6 +17,7 @@ namespace RDR2Coop.Net
         Fleeing = 16,
         PlayerHorse = 32, // the host's own horse: shown, never hurt through co-op
         Blipped = 64,     // marked on the owner's map (mission characters, targets, enemies)
+        Protected = 128,  // a story mission's ally: the owner's game ignores guests' hits on it, so copies can't be hurt
     }
 
     // What an NPC is busy with, beyond moving: copies act it out.

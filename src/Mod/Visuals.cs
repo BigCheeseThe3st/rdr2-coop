@@ -14,11 +14,15 @@ namespace RDR2Coop.Mod
         public static bool Names = true;      // their name over their head
         public static bool Wear = true;       // wet, dirty or bloody clothes
         public static bool Emotes = true;     // emotes, sitting and other actions
+        public static bool GameFont = true;   // the co-op menu in the game's own fonts (No: the plain font; a translation mod can blank them)
 
         public static void Load(Ini ini)
         {
             Aiming = On(ini, "Aiming"); Horses = On(ini, "Horses"); Stance = On(ini, "Stance");
             Carrying = On(ini, "Carrying"); Names = On(ini, "Names"); Wear = On(ini, "Wear"); Emotes = On(ini, "Emotes");
+            // True/False like enRage's own GameFont (players copy that line); No and 0 count as False too.
+            var font = ini.Get("Visuals", "GameFont", "True").Trim().ToLowerInvariant();
+            GameFont = !(font.StartsWith("f") || font.StartsWith("n") || font == "0");
         }
 
         static bool On(Ini ini, string key) => !ini.Get("Visuals", key, "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase);
@@ -35,13 +39,18 @@ namespace RDR2Coop.Mod
         public static bool Doors = true;        // doors and broken things match
         public static bool Trains = true;       // trains players drive, and ones the mod didn't know
         public static bool MiniGames = true;    // co-op stands back while you play poker, blackjack, dominoes...
+        public static bool Bubbles = false;     // every game runs its own world; nearby players' worlds show alongside (src/Net/Bubbles.cs)
 
         public static void Load(Ini ini)
         {
             Markers = On(ini, "Markers"); MissionSteps = On(ini, "MissionSteps"); OwnMissionsAsGuest = ini.Get("Gameplay", "OwnMissionsAsGuest", "No").Trim().Equals("Yes", System.StringComparison.OrdinalIgnoreCase); Explosions = On(ini, "Explosions");
             Law = On(ini, "Law"); Doors = On(ini, "Doors"); Trains = On(ini, "Trains"); MiniGames = On(ini, "MiniGames");
+            Cutscenes.On = On(ini, "Cutscenes");
+            HostWorld.On = On(ini, "HostWorld");
+            Bubbles = ini.Get("Gameplay", "Bubbles", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // beta: off unless asked for
             Puppet.CarrySteer = ini.Get("Testing", "RideDoubleSteer", "rider").Trim().ToLowerInvariant();   // a stand-in's horse with our player behind: rider | horse | none
             Puppet.CarryGroup = ini.Get("Testing", "RideDoubleGroup", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);
+            BubbleCrowd.Volumes = ini.Get("Testing", "BubbleVolumes", "No").Trim().StartsWith("y", StringComparison.OrdinalIgnoreCase);   // spawn blocks round players instead of whole-map suppression
         }
 
         static bool On(Ini ini, string key) => !ini.Get("Gameplay", key, "Yes").StartsWith("n", StringComparison.OrdinalIgnoreCase);
