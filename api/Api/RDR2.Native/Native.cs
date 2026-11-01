@@ -473,8 +473,10 @@ namespace RDR2.Native
 		{
 			if (typeof(T) == typeof(bool))
 			{
-				// Return proper boolean values (true if non-zero and false if zero)
-				bool valueBool = *value != 0;
+				// Return proper boolean values (true if non-zero and false if zero). The lower 4 bytes only: the game writes
+				// a BOOL as an int and leaves the upper 4 as they were; in some players' games those held leftovers and
+				// every yes/no check said yes (dead while riding, jumping + falling + swimming at once; 1 Nov 2026).
+				bool valueBool = *(int*)value != 0;
 				return NativeHelper<T>.PtrToStructure(new IntPtr(&valueBool));
 			}
 			if (typeof(T) == typeof(IntPtr)) // Has to be before 'IsPrimitive' check

@@ -12,7 +12,7 @@ namespace RDR2Coop.Mod
 {
     sealed class MissionProbe
     {
-        internal static readonly string[] Names =
+        static readonly string[] Names =
         {
             "winter1", "winter2", "winter4", "mudtown1", "mudtown2", "mudtown3", "mudtown3b", "mudtown4", "mudtown5",
             "mary1", "mary3", "saloon1", "utopia1", "utopia2", "sean1", "bounty1", "reverend1", "hunting1", "feud1",
@@ -37,15 +37,10 @@ namespace RDR2Coop.Mod
         // self-check says they fit this game.
         const int StoryMissionTable = 1835011, StoryMissionSize = 74;   // [79]: .f_3 script name
         const int StageInfo = 1572864;          // .f_8 mission record, .f_9 checkpoint, .f_10 next stage
-        const int SceneHandle = 43800, SceneLabelGlobal = 43802;   // the anim scene story cutscenes play in
+        const int SceneHandle = 43800, SceneLabel = 43802;   // the anim scene story cutscenes play in
 
         public static bool GlobalsOk { get; private set; }
         public static bool InMissionScene { get; private set; }   // a story cutscene (anim scene) is playing
-        public static int Scene { get; private set; }             // ... its anim scene
-        public static string SceneLabel { get; private set; }     // ... and label (cutscene@<label>)
-        // Testing ([Testing] CutsceneAsStory, Mod/CutsceneTest.cs): a scene the test plays counts as a story cutscene of TestMission.
-        internal static int TestScene;
-        internal static string TestLabel, TestMission;
         public static bool StoryMission => _storyMission;
         static bool _storyMission;
         int _lastCheckpoint = -2;
@@ -70,6 +65,15 @@ namespace RDR2Coop.Mod
                 GlobalsOk = g == me && mud == "mudtown1";
                 CoopScript.Log($"script globals: global 35 = {g}, player ped = {me}, mission table [4] = '{mud}' -> " +
                                (GlobalsOk ? "decompiled 1491.50 globals match this game" : "globals DON'T match (different build?): global reads off"));
+#if !NET48
+                unsafe
+                {
+                    // Logged once: does this game leave leftovers in the upper half of a yes/no answer (read from the lower
+                    // half since 1 Nov; before, every check said yes in those games)? IS_PED_SWIMMING is false here.
+                    ulong* r = RDR2DN.NativeFunc.Invoke(0x9DE327631295B4C2, (ulong)me);
+                    if (r != null) CoopScript.Log($"native answers: IS_PED_SWIMMING raw {*r:X16}: upper half " + ((*r >> 32) != 0 ? "NOT clear (leftovers: yes/no answers are read from the lower half)" : "clear"));
+                }
+#endif
             }
             if (GlobalsOk) ReadStage();
             if (GlobalsOk && _storyMission && now - _lastPromptScan > 2000) { _lastPromptScan = now; ReadPrompts(); }
@@ -91,11 +95,9 @@ namespace RDR2Coop.Mod
         // globals. Read-only.
         void ReadStage()
         {
-            int scene = TestScene != 0 ? TestScene : GInt(SceneHandle);
+            int scene = GInt(SceneHandle);
             InMissionScene = scene != 0 && ANIMSCENE.DOES_ANIM_SCENE_EXIST(scene) && ANIMSCENE.IS_ANIM_SCENE_RUNNING(scene, false);
-            Scene = scene;
-            string label = !InMissionScene ? null : TestScene != 0 ? TestLabel : GlobalText(SceneLabelGlobal, 24);
-            SceneLabel = label;
+            string label = InMissionScene ? GlobalText(SceneLabel, 24) : null;
             if (label != _lastScene)
             {
                 CoopScript.Log(label != null ? $"story cutscene playing: {label}" : $"story cutscene over: {_lastScene}");

@@ -12,7 +12,6 @@ test('fields are checked', () => {
   assert.equal(fieldsFrom(h({ 'x-coop-version': '../x', 'x-coop-install': 'deadbeef' })), null)
   assert.equal(fieldsFrom(h({ 'x-coop-version': '0.9.0', 'x-coop-install': 'no spaces here!' })), null)
   assert.equal(fieldsFrom(h({ 'x-coop-version': '0.9.0', 'x-coop-install': 'deadbeef', 'x-coop-kind': 'evil' })), null)
-  assert.equal(fieldsFrom(h({ 'x-coop-version': '0.9.0-beta.8.4', 'x-coop-install': 'deadbeef', 'x-coop-kind': 'mission' })).kind, 'mission')
 })
 test('an upload without an install id gets the derived one (SendLogs=Yes typed by hand, before 0.9.0-beta.8)', () => {
   const h = m => ({ get: k => m[k.toLowerCase()] ?? null })

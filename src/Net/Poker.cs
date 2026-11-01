@@ -290,29 +290,6 @@ namespace RDR2Coop.Net
         public int ToCall(byte me) { var s = _vSeats.Find(x => x.Id == me); return s == null ? 0 : Math.Max(0, _vBet - s.Bet); }
         public int Stakes => _vStakes;
 
-        static readonly Random BotRng = new Random();
-        /// <summary>A card player's move (the house's players at a story table, and FakePlayer's test bot): checks when it
-        /// can, calls up to 2 big blinds, folds to more unless it holds a pair or better, and now and then raises.</summary>
-        public static string BotPick(TableGame view, byte me, IList<(string label, string action)> options)
-        {
-            var p = view as Poker;
-            var raise = options.FirstOrDefault(o => o.action.StartsWith("raise "));
-            lock (BotRng) if (raise.action != null && BotRng.Next(10) == 0) return raise.action;
-            if (options.Any(o => o.action == "check")) return "check";
-            bool call = p == null || p.ToCall(me) <= 2 * p.Stakes || p.MyRank() >= 1;
-            return call && options.Any(o => o.action == "call") ? "call" : options.Any(o => o.action == "fold") ? "fold" : options[0].action;
-        }
-
-        // ---- for a real table's look (src/Mod/RealPoker.cs): what this game sees of the hand ----
-        public IReadOnlyList<int> Board => _vBoard;
-        /// <summary>Our two cards this hand, or null.</summary>
-        public IReadOnlyList<int> MyCards => Mine;
-        /// <summary>Changes whenever the view does: redraw then.</summary>
-        public int ViewVersion => _ver;
-        /// <summary>Each seat: its player, p playing / a all in / f folded / l left, the cards shown at a showdown (or null).</summary>
-        public IEnumerable<(byte id, char state, IReadOnlyList<int> cards)> SeatView => _vSeats.Select(x => (x.Id, x.State, (IReadOnlyList<int>)x.Cards));
-        public int PotInView => _vSeats.Sum(x => x.Put);
-
         /// <summary>Our hand's rank so far: -1 no cards, 0 high card, 1 a pair (a pocket pair before the flop)... 8.</summary>
         public int MyRank()
         {

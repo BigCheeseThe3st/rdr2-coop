@@ -20,11 +20,6 @@ namespace RDR2Coop.Mod
         HashSet<int> _vehicles = new HashSet<int>();
         long _lastCountLogMs;
         readonly List<int> _trainIds = new List<int>();   // engines sent last round, kept in the id map
-        // Per engine: the carriage list sent (its config) and a new one waiting to hold still. A train's carriages
-        // appear over a few frames: sending each in-between list made a guest's game build the train again each
-        // time, and the first copy sometimes stayed as a second train (30 Oct: "train dupe glitch").
-        readonly Dictionary<int, (string sent, uint config, string waiting, int since)> _trainCars = new Dictionary<int, (string, uint, string, int)>();
-        const int TrainSettleMs = 1500;
         // Shots are counted every frame: IS_PED_SHOOTING is true only around
         // the frame a bullet leaves, which 20 Hz snapshots would mostly miss.
         List<int> _tracked = new List<int>();
@@ -33,10 +28,6 @@ namespace RDR2Coop.Mod
         readonly HashSet<int> _wasShooting = new HashSet<int>();
 
         public OwnedWorld(int hz) { _intervalMs = 1000 / Math.Max(1, hz); }
-
-        /// <summary>Bubbles: what our mirrors of other games made (copies, their wagons, stand-in drivers, trains),
-        /// set each tick. Never ours to send (it would echo back to its owner), never deleted as a stray copy.</summary>
-        public static readonly HashSet<int> Skip = new HashSet<int>();
 
         // followers: the players showing our area, with their puppets here; everyone: every player's puppet here.
         public void Tick(ServerLink link, IDictionary<byte, Puppet> followers, IEnumerable<Puppet> everyone, IList<Vec3> followerPositions, long now)
@@ -66,8 +57,7 @@ namespace RDR2Coop.Mod
             foreach (int h in EntityScan.Peds(scanAt, EntitySelector.Radius))
             {
                 if (skip.Contains(h) || !Peds.Exists(h) || PED.IS_PED_A_PLAYER(h)) continue;
-                if (Skip.Contains(h)) continue;   // a linked game's copy (bubbles): theirs, not ours
-                if (MirrorWorld.IsCopyGroup(h)) { Peds.Delete(h); continue; }   // a leftover copy (live ones are in Skip, above) is not one of our NPCs: never sent, removed
+                if (MirrorWorld.IsCopyGroup(h)) { Peds.Delete(h); continue; }   // a leftover copy is not one of our NPCs: never sent, removed
                 // Harnessed draft horses come with the copy of their wagon.
                 if (PED._GET_VEHICLE_DRAFT_HORSE_IS_ATTACHED_TO(h) != 0) continue;
                 // A card table's players stay in our game (each game seats its own; copies would sit on theirs), unless they fight.
@@ -79,13 +69,11 @@ namespace RDR2Coop.Mod
                     MountHandle = PED.IS_PED_ON_MOUNT(h) ? PED.GET_MOUNT(h) : 0,
                     Dead = ENTITY.IS_ENTITY_DEAD(h),
                     Hostile = IsHostile(h, meH, followers.Values),
-                    Key = MissionRoles.Known(h) || Cutscenes.HostParts.Contains(h),
                 });
             }
 
             var points = new List<Vec3>(followerPositions) { CoopScript.ToNet(me.Position) };
-            // Bubbles: every linked game sends its own world, so each sends less the more there are (all of it to one, half to three).
-            var picked = EntitySelector.Pick(candidates, points, MirrorWorld.Bubbles ? WorldSnapshot.MaxEntities * 2 / (followers.Count + 1) : WorldSnapshot.MaxEntities);
+            var picked = EntitySelector.Pick(candidates, points, WorldSnapshot.MaxEntities);
 
             CoopScript.Trace("owned: vehicles");
             // Vehicles: ours and the followers' first, then those carrying NPCs we send.
@@ -93,7 +81,7 @@ namespace RDR2Coop.Mod
             foreach (var p in followers.Values) playerVehicles.Add(Peds.VehicleOf(p.Handle));
             var carriers = new HashSet<int>(picked.Select(Peds.VehicleOf));
             var vehicleCandidates = new List<VehicleCandidate>();
-            var allVehicles = EntityScan.Vehicles(scanAt, 300f).Where(v => !Skip.Contains(v)).ToList();   // wide: a train's engine can be far from its carriages; never a linked game's copies
+            var allVehicles = EntityScan.Vehicles(scanAt, 300f);   // wide: a train's engine can be far from its carriages
             foreach (int vh in allVehicles)
             {
                 if (!Peds.Exists(vh) || VEHICLE.IS_THIS_MODEL_A_TRAIN(ENTITY.GET_ENTITY_MODEL(vh))) continue;   // trains: later
@@ -219,7 +207,6 @@ namespace RDR2Coop.Mod
             if (PED.IS_PED_FLEEING(h)) e.Flags |= EntityFlags.Fleeing;
             if (h == _myHorse || h == _lastMount) e.Flags |= EntityFlags.PlayerHorse;
             else if (MAP._DOES_ENTITY_HAVE_BLIP(h)) e.Flags |= EntityFlags.Blipped;
-            if (!c.Dead && (MissionProbe.StoryMission || MissionRoles.Known(h)) && MissionAlly(h, meH, c.Hostile, out _)) e.Flags |= EntityFlags.Protected;
             e.Outfit = PED._GET_PED_META_OUTFIT_HASH(h);
             if (!c.Dead) e.Action = ActionOf(h, out e.Scenario);
             int veh = Peds.VehicleOf(h);
@@ -297,22 +284,12 @@ namespace RDR2Coop.Mod
                 carriagesOf[v] = list;
             }
             var result = new List<TrainState>();
-            foreach (int gone in _trainCars.Keys.Where(e => !carriagesOf.ContainsKey(e)).ToList()) _trainCars.Remove(gone);
             foreach (int engine in trainParts.Where(v => !isCarriage.Contains(v))
                          .OrderBy(v => points.Min(p => Vec3.Distance(CoopScript.ToNet(Peds.Position(v)), p)))
                          .Take(WorldSnapshot.MaxTrains))
             {
                 var models = carriagesOf[engine].Select(c => ENTITY.GET_ENTITY_MODEL(c)).ToList();
-                string key = string.Join(",", models);
-                int tick = Environment.TickCount;
-                _trainCars.TryGetValue(engine, out var tc);
-                if (key != tc.sent)
-                {
-                    if (key != tc.waiting) { tc.waiting = key; tc.since = tick; }
-                    else if (unchecked(tick - tc.since) >= TrainSettleMs) { tc.sent = key; tc.config = TrainConfigs.For(engine, models); }
-                    _trainCars[engine] = tc;
-                }
-                uint config = tc.config;   // the settled list's (until then nothing, or the one sent before)
+                uint config = TrainConfigs.For(engine, models);
                 if (config == 0) continue;
                 var vel = ENTITY.GET_ENTITY_VELOCITY(engine, 0);
                 var fwd = ENTITY.GET_ENTITY_FORWARD_VECTOR(engine);
@@ -335,8 +312,6 @@ namespace RDR2Coop.Mod
         public ushort IdForVehicle(int vehicle) => vehicle == 0 ? (ushort)0 : _ids.IdFor(vehicle);
         public int VehicleHandle(ushort id) => id == 0 ? 0 : _ids.HandleFor(id);
         public int PedOf(ushort id) => id == 0 ? 0 : _ids.HandleFor(id);
-        /// <summary>The id an entity we send goes by, or 0 when we don't send it.</summary>
-        public ushort IdOf(int handle) => _ids.TryGet(handle, out var id) ? id : (ushort)0;
 
         internal static bool IsHostile(int h, int meH, IEnumerable<Puppet> puppets) =>
             PED.GET_RELATIONSHIP_BETWEEN_PEDS(h, meH) == 5   // 5 = hate
@@ -378,10 +353,15 @@ namespace RDR2Coop.Mod
             int damage = hit.Bone == Hit.HeadBone ? Math.Max((int)hit.Damage, 1000) : hit.Damage;
             int me = Game.Player.Character.Handle;
             int inflictor = shooter?.Handle ?? 0;
-            if (MissionProbe.StoryMission || MissionRoles.Known(ped))   // stranger missions and encounters the map knows too
+            if (MissionProbe.StoryMission)
             {
                 bool hostile = IsHostile(ped, me, shooter != null ? new[] { shooter } : new Puppet[0]);
-                bool ally = MissionAlly(ped, me, hostile, out int rel);
+                // Hurting an ally (or an ally's horse) fails the mission for everyone, so a guest's
+                // hits on allies are dropped. Only allies: mission enemies often aren't "hostile" yet
+                // (no hate, not fighting the host), and guests' shots used to do nothing to them (bug #8).
+                int rel = PED.GET_RELATIONSHIP_BETWEEN_PEDS(ped, me);
+                bool ally = !hostile && (rel <= 2 || PED.IS_PED_GROUP_MEMBER(ped, PLAYER.GET_PLAYER_GROUP(PLAYER.PLAYER_ID()), false))
+                            && (PED.IS_PED_HUMAN(ped) || PED._IS_THIS_MODEL_A_HORSE(ENTITY.GET_ENTITY_MODEL(ped)));
                 LogMissionHit(ped, rel, hostile, ally);
                 if (ally) return;
                 // Missions check "killed by the player" on named enemies; once a
@@ -393,18 +373,6 @@ namespace RDR2Coop.Mod
             PED.APPLY_DAMAGE_TO_PED(ped, damage, 0, hit.Bone, inflictor);
         }
 
-        // Hurting a story mission's ally (or an ally's horse) fails the mission for everyone, so a guest's hits on
-        // allies are dropped, and their copies can't be hurt (EntityFlags.Protected). Only allies: mission enemies
-        // often aren't "hostile" yet (no hate, not fighting the host), and guests' shots used to do nothing to them (bug #8).
-        static bool MissionAlly(int ped, int me, bool hostile, out int rel)
-        {
-            rel = PED.GET_RELATIONSHIP_BETWEEN_PEDS(ped, me);
-            var mapped = MissionRoles.Side(ped);   // the mission map, when it's sure (MissionRoles.cs)
-            if (mapped != MissionRole.None) return mapped == MissionRole.Ally && !hostile;
-            return !hostile && (rel <= 2 || PED.IS_PED_GROUP_MEMBER(ped, PLAYER.GET_PLAYER_GROUP(PLAYER.PLAYER_ID()), false))
-                   && (PED.IS_PED_HUMAN(ped) || PED._IS_THIS_MODEL_A_HORSE(ENTITY.GET_ENTITY_MODEL(ped)));
-        }
-
         // What happened to a guest's hit in a story mission, once per NPC and decision.
         readonly Dictionary<int, bool> _missionHitLogged = new Dictionary<int, bool>();
         void LogMissionHit(int ped, int rel, bool hostile, bool ally)
@@ -412,7 +380,7 @@ namespace RDR2Coop.Mod
             if (_missionHitLogged.TryGetValue(ped, out bool was) && was == ally) return;
             if (_missionHitLogged.Count > 256) _missionHitLogged.Clear();
             _missionHitLogged[ped] = ally;
-            CoopScript.Log($"mission: guest hit on {ENTITY.GET_ENTITY_MODEL(ped):X8} (relationship {rel}, hostile {hostile}, map {MissionRoles.Side(ped)}, mission entity {ENTITY.IS_ENTITY_A_MISSION_ENTITY(ped)}): " +
+            CoopScript.Log($"mission: guest hit on {ENTITY.GET_ENTITY_MODEL(ped):X8} (relationship {rel}, hostile {hostile}, mission entity {ENTITY.IS_ENTITY_A_MISSION_ENTITY(ped)}): " +
                            (ally ? "an ally, ignored" : hostile ? "applied, credited to us (the host)" : "applied, credited to the guest"));
         }
 

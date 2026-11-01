@@ -61,7 +61,17 @@ sealed class BlackjackBot : TableBot
 // before the flop), and 1 time in 10 makes the smallest raise it's offered.
 sealed class PokerBot : TableBot
 {
-    public override string Pick(TableGame view, byte me, IList<(string label, string action)> options) => Poker.BotPick(view, me, options);
+    readonly Random _rng = new Random();
+
+    public override string Pick(TableGame view, byte me, IList<(string label, string action)> options)
+    {
+        var p = view as Poker;
+        var raise = options.FirstOrDefault(o => o.action.StartsWith("raise "));
+        if (raise.action != null && _rng.Next(10) == 0) return raise.action;
+        if (options.Any(o => o.action == "check")) return "check";
+        bool call = p == null || p.ToCall(me) <= 2 * p.Stakes || p.MyRank() >= 1;
+        return call && options.Any(o => o.action == "call") ? "call" : "fold";
+    }
 }
 
 static class TableBots

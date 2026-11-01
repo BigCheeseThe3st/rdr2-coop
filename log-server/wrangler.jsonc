@@ -4,5 +4,5 @@
   "main": "src/index.js",
   "compatibility_date": "2026-09-01",
   "r2_buckets": [{ "binding": "LOGS", "bucket_name": "rdr2coop-logs" }],
-  "vars": { "MAX_BYTES": "1048576" }
+  "vars": { "MAX_BYTES": "1048576", "KEEP_DAYS": "30" }
 }
