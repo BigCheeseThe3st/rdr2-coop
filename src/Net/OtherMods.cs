@@ -1,5 +1,5 @@
 // Other mods next to ours, listed in the log at every start (the author, 1 Nov: "we need a way of knowing if players
-// have other mods installed": MR ZOOL's frozen, T-posing partners came from his other mods, found only by asking).
+// have other mods installed": a tester's frozen, T-posing partners came from their other mods, found only by asking).
 // Names only: what the game folder holds that the game doesn't ship, scripts\ (ScriptHook mods) and lml\ (Lenny's
 // Mod Loader). Our own files and all logs are left out.
 using System;
