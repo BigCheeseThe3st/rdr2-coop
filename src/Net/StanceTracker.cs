@@ -17,18 +17,16 @@ namespace RDR2Coop.Net
         Ragdoll = 4,      // go limp for a moment
         CheckLevel = 8,   // a move ended a second ago: put it beside them if it's on another level
         Hold = 16,        // a move plays: no walking orders
-        Dive = 32,        // dive (into water, or the sprinting dive)
-        Evade = 64,       // dive out of the way of what's coming at it
     }
 
     public sealed class StanceTracker
     {
-        public const int JumpMs = 800, ClimbMs = 1200, RagdollMs = 1500, DiveMs = 1200;   // how long each move plays before steering is back
+        public const int JumpMs = 800, ClimbMs = 1200, RagdollMs = 1500;   // how long each move plays before steering is back
         public const int ClimbMaxMs = 8000;   // steering waits while they climb (a ladder), but no longer
         public const int FallMs = 800;        // falling this long (about 3 m) is a real fall, not a step down
         public const int SettleMs = 1000;     // after a move: then see whether it made their level
         public const int BreakMs = 1000;      // after a longer break (on a horse, in a vehicle, down) a pose only sets the start
-        const PoseFlags Moves = PoseFlags.Jumping | PoseFlags.Climbing | PoseFlags.Falling | PoseFlags.Ragdoll | PoseFlags.Diving | PoseFlags.Evading;
+        const PoseFlags Moves = PoseFlags.Jumping | PoseFlags.Climbing | PoseFlags.Falling | PoseFlags.Ragdoll;
 
         PoseFlags _last;
         long _lastMs = -BreakMs - 1, _holdUntil, _climbSince = -1, _fallSince = -1, _checkAt = -1;
@@ -50,10 +48,6 @@ namespace RDR2Coop.Net
             _lastMs = now;
             var step = StanceStep.None;
 
-            // A dive is its own move (the game may call it a jump or a fall as well): dive, not jump, and no limp fall into the water.
-            if ((rose & PoseFlags.Evading) != 0 && near && now >= _holdUntil) { step |= StanceStep.Evade; _holdUntil = now + DiveMs; }
-            else if ((rose & PoseFlags.Diving) != 0 && near && now >= _holdUntil) { step |= StanceStep.Dive; _holdUntil = now + DiveMs; }
-            if ((pose & (PoseFlags.Diving | PoseFlags.Evading)) != 0) _limp = true;
             if ((rose & PoseFlags.Jumping) != 0 && near && now >= _holdUntil) { step |= StanceStep.Jump; _holdUntil = now + JumpMs; }
 
             if ((pose & PoseFlags.Climbing) == 0) _climbSince = -1;

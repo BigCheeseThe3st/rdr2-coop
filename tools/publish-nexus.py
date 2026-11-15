@@ -46,6 +46,8 @@ PRODUCTS = {
                       zip="RDR2-Coop-Linux-Installer-{v}.zip", mod_version=False),
     "beta": dict(file_id=None, name="RDR2 Coop Beta", category="optional", version_file="VERSION", changelog="CHANGELOG.md",
                  zip="RDR2-Coop-{v}.zip", mod_version=False),   # the main file and the page's version stay on the stable release
+    "fixes": dict(file_id=None, name="RDR2 Coop Fixes", category="optional", version_file="VERSION", changelog="CHANGELOG.md",
+                  zip="RDR2-Coop-{v}.zip", mod_version=False),   # x.y.z-rc.n: the next stable's small fixes early (from the release-0.7.6 branch)
     "enrage-patch": dict(file_id="8217585", name="enRage Coop Patch (OBSOLETE AS OF COOP 0.7.66)", category="optional",
                          version_file="ENRAGE_PATCH_VERSION", changelog="CHANGELOG-ENRAGE-PATCH.md",
                          zip="RDR2-Coop-enRage-Patch-{v}.zip", mod_version=False),
@@ -135,7 +137,8 @@ def publish(product, go):
         made = call("POST", "/mod-files", {"upload_id": upload(zip_path), "mod_id": MOD_ID, "name": name,
                                            "version": version, "file_category": p["category"]})["data"]
         ids = json.loads(IDS_FILE.read_text()) if IDS_FILE.exists() else {}
-        ids[product] = str((made.get("file") or {}).get("id") or made["id"])   # made is the first version; its file id is what later versions go under
+        fid_new = (made.get("file") or {}).get("id") or call("GET", f"/mod-file-versions/{made['id']}")["data"]["file"]["id"]   # the reply is the first version: later versions go under its FILE id
+        ids[product] = str(fid_new)
         IDS_FILE.write_text(json.dumps(ids, indent=2) + "\n")
         print(f"published {product} {version} as new file {ids[product]} (saved in {IDS_FILE.name})")
         return

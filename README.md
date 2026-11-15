@@ -92,4 +92,4 @@ RDR2 Co-op is free and stays free: tips don't buy features or early access. If y
 Donation Points go there too, apart from 10% to enRage's author.
 
 ## Licence
-MIT (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.
+GPL-3.0 (see LICENSE; third-party notes in NOTICE). Building it yourself: BUILDING.md.

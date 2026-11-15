@@ -1,7 +1,7 @@
 // The game side of sharing logs with the author (rules and scrubbing: Net/LogShare.cs). Every build asks
 // once ([Testing] SendLogs= empty): the question stays on screen for a while, Y or N is written to the ini.
 // With a Yes, the tail of scripts\RDR2Coop.log (and the loader's and host's logs when they exist) goes to
-// the log store (with the story missions' recordings, Mod/MissionRecorder.cs) a minute after the start, every 10 minutes, when the tick throws, and when the mod stops
+// the log store a minute after the start, every 10 minutes, when the tick throws, and when the mod stops
 // (reload or quitting). Every step is logged, and nothing is sent without the Yes. A Yes typed into the ini by hand
 // gets its install id here (the log store refused uploads without one before 0.9.0-beta.8), and F10 shows whether
 // the logs actually go out (Status).
@@ -28,7 +28,6 @@ namespace RDR2Coop.Mod
         long _lastResultMs;
 
         public bool Asking => _askedAt >= 0;
-        public bool On => LogShare.IsBeta(_version) && _consent == LogShare.Consent.Yes;
 
         // The co-op menu row (betas only): the same switch as the question, for later.
         public string MenuLabel => LogShare.Label(_version) + (_consent == LogShare.Consent.Yes ? ": sending to the developer (switch off)" : ": not sent (switch on)");
@@ -119,10 +118,10 @@ namespace RDR2Coop.Mod
             {
                 try
                 {
-                    foreach (var (file, kind) in new[] { ("RDR2Coop.log", "mod"), ("RDR2Coop.Host.log", "host"), ("RDR2Coop.Core.log", "core"), (MissionRecorder.FileName, "mission") })
+                    foreach (var (file, kind) in new[] { ("RDR2Coop.log", "mod"), ("RDR2Coop.Host.log", "host"), ("RDR2Coop.Core.log", "core") })
                     {
                         string path = Path.Combine(_scripts, file);
-                        if (!File.Exists(path) || new FileInfo(path).Length == 0) continue;   // the store refuses empty uploads
+                        if (!File.Exists(path)) continue;
                         string text;
                         using (var f = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
                         using (var r = new StreamReader(f, Encoding.UTF8)) text = r.ReadToEnd();
