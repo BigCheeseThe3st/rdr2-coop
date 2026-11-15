@@ -19,6 +19,6 @@ export function fieldsFrom(headers, fallbackInstall) {
     f.install = fallbackInstall
     f.derived = true
   }
-  if (!['mod', 'host', 'core'].includes(f.kind)) return null
+  if (!['mod', 'host', 'core', 'mission'].includes(f.kind)) return null   // mission: a story mission's script recording (0.9.0-beta.8.4)
   return f
 }

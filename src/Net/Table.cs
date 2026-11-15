@@ -53,7 +53,8 @@ namespace RDR2Coop.Net
 {
     public static class TableMsg
     {
-        public const int MaxSeats = 4, CashTimesStakes = 50, MaxCents = 1_000_000, MaxState = 900, MaxAction = 64;
+        // MaxSeats 6: a story poker table's chairs (players are 4 at most; the rest are its card players)
+        public const int MaxSeats = 6, CashTimesStakes = 50, MaxCents = 1_000_000, MaxState = 900, MaxAction = 64;
         public static readonly int[] Stakes = { 50, 100, 250, 500, 1000, 2500 };
         public static readonly string[] EndReasons = { "closed", "too few", "host left", "over" };
 
@@ -202,6 +203,52 @@ namespace RDR2Coop.Net
             return r;
         }
 
+        // ---- the house's players: at one of the story's poker tables its card players play too. The host runs them
+        // (ids FirstBot and up, one per chair): pretend cash, its own view of the hand per bot (fed like a player's), a
+        // move from BotPick after BotThinkMs. Their pay lines go out with everyone's (all add up to zero); no game
+        // applies them (no player has their id), so a win against them is real money from the house, as at the game's
+        // own tables.
+        public const byte FirstBot = 200;
+        public const int BotThinkMs = 1800;
+        public static bool IsBot(byte id) => id >= FirstBot && id < Protocol.Broadcast;
+        public Func<TableGame> MakeBotView;   // host: a view for each bot
+        public Func<TableGame, byte, IList<(string label, string action)>, string> BotPick;   // host: a bot's move
+        readonly Dictionary<byte, TableGame> _bots = new Dictionary<byte, TableGame>();
+        int _botSeat = -2;
+        string _botState;
+        long _botSince;
+
+        /// <summary>Host: the bots sitting now. New ones sit at once (if there's room); ones not listed get up (mid-hand: they forfeit).</summary>
+        public void SetBots(IList<byte> ids)
+        {
+            if (!IAmHost || Done) return;
+            foreach (var gone in _bots.Keys.Where(b => !ids.Contains(b)).ToList()) { _bots.Remove(gone); Unseat(gone); }
+            foreach (var b in ids.Where(IsBot).Distinct())
+            {
+                if (_bots.ContainsKey(b) || Seats.Count >= TableMsg.MaxSeats || MakeBotView == null) continue;
+                _bots[b] = MakeBotView();
+                Seats.Add(b);
+                if (_phase == Phase.Gathering) _cash[b] = TableMsg.CashCap(Stakes);
+                SendSeats();
+            }
+        }
+
+        public IEnumerable<byte> Bots => _bots.Keys;
+
+        void BotTurn(long now)
+        {
+            int turn = _rules.Turn;
+            if (turn < 0 || turn >= _hand.Count || !_bots.TryGetValue(_hand[turn], out var view)) { _botSeat = -2; return; }
+            string state = _rules.Public();
+            if (turn != _botSeat || state != _botState) { _botSeat = turn; _botState = state; _botSince = now; return; }
+            if (now - _botSince < BotThinkMs) return;
+            byte id = _hand[turn];
+            var opts = view.Options(id);
+            string act = opts.Count > 0 ? (BotPick?.Invoke(view, id, opts) ?? opts[0].action) : _rules.DefaultAction(turn);
+            if (!_rules.Act(turn, act) && !_rules.Act(turn, _rules.DefaultAction(turn))) _rules.Forfeit(turn);
+            _botSeat = -2;
+        }
+
         void SendSeats() => Out.Add((Protocol.Broadcast, $"seats {Id} {string.Join(",", Seats)} {_next}"));
         void Close(string why) { Done = true; Why = why; }
         void End(string why) { Out.Add((Protocol.Broadcast, $"end {Id} {why}")); Close(why); }
@@ -230,6 +277,7 @@ namespace RDR2Coop.Net
                     break;
                 case Phase.Gathering:
                     _cash[Me] = Bring;
+                    foreach (var b in _bots.Keys) _cash[b] = TableMsg.CashCap(Stakes);
                     if (!Seats.All(_cash.ContainsKey) && now - _phaseMs < GatherMs) break;
                     var players = Seats.Where(s => _cash.TryGetValue(s, out int c) && c >= Stakes).ToList();
                     if (_rules.HostIsHouse && (players.Count == 0 || players[0] != Me)) players.Clear();   // never a guest as the house
@@ -237,6 +285,7 @@ namespace RDR2Coop.Net
                     else if (now - _phaseMs >= GatherMs) { if (Seats.Count >= _rules.MinPlayers) Gather(now); else Idle(now); }   // ask again
                     break;
                 case Phase.Playing:
+                    BotTurn(now);
                     _rules.Tick(now);
                     if (_rules.HandOver) Settle(now);
                     break;
@@ -304,6 +353,13 @@ namespace RDR2Coop.Net
                 int mine = _hand.IndexOf(Me);
                 string secret = mine >= 0 ? _rules.Private(mine) : null;
                 if (secret != null) Safe(() => Game.OnPrivate(secret));
+                for (int i = 0; i < _hand.Count; i++)   // the bots see what a player would
+                {
+                    if (!_bots.TryGetValue(_hand[i], out var view)) continue;
+                    Safe(() => view.OnPublic(pub));
+                    string own = _rules.Private(i);
+                    if (own != null) Safe(() => view.OnPrivate(own));
+                }
             }
             if (!(pub != _pubSent && now - _pubMs >= PubMinMs) && now - _pubMs < PubEveryMs) return;
             _pubSent = pub;
@@ -311,7 +367,7 @@ namespace RDR2Coop.Net
             Out.Add((Protocol.Broadcast, $"pub {Id} {pub}"));
             for (int i = 0; i < _hand.Count; i++)
             {
-                if (_hand[i] == Me || !Seats.Contains(_hand[i])) continue;
+                if (_hand[i] == Me || IsBot(_hand[i]) || !Seats.Contains(_hand[i])) continue;
                 string secret = _rules.Private(i);
                 if (secret != null && secret.Length <= TableMsg.MaxState && secret.IndexOf('\n') < 0) Out.Add((_hand[i], $"priv {Id} {secret}"));
             }
@@ -323,6 +379,7 @@ namespace RDR2Coop.Net
         void Unseat(byte id)
         {
             if (!Seats.Remove(id)) return;
+            _bots.Remove(id);
             int i = _hand.IndexOf(id);
             if (_phase == Phase.Playing && i >= 0) _rules.Forfeit(i);
             _cash.Remove(id);
@@ -377,7 +434,15 @@ namespace RDR2Coop.Net
                 case "join":
                     if (Seats.Contains(from)) { SendSeats(); return; }   // asking again: our seats line got lost
                     var p = PosOf(from);
-                    if (Seats.Count >= TableMsg.MaxSeats || p == null || Vec3.Distance(p.Value, At) > LeaveRange) return;
+                    if (p == null || Vec3.Distance(p.Value, At) > LeaveRange || IsBot(from)) return;
+                    if (Seats.Count >= TableMsg.MaxSeats && _bots.Count > 0)   // a card player gets up for a partner: the one in the chair they take
+                    {
+                        int humans = Seats.Count(id => !IsBot(id));
+                        byte up = _bots.ContainsKey((byte)(FirstBot + humans)) ? (byte)(FirstBot + humans) : _bots.Keys.Min();
+                        _bots.Remove(up);
+                        Unseat(up);
+                    }
+                    if (Seats.Count >= TableMsg.MaxSeats) return;
                     Seats.Add(from);
                     _lonelyMs = now;
                     Note = $"{from} sat down";
