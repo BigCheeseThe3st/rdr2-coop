@@ -3,6 +3,23 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.8.0 (15 Nov 2026) - protocol 13
+- The 0.9.0 betas are now the stable version. Everything since 0.7.70 is in
+  (see the 0.9.0-beta entries below for the details), mainly:
+  - Guests play in the host's story (camp, missions, progress) with their
+    own character, money, clothes and horse; their own saves are backed up and
+    guarded, and their own story comes back when they leave. Switch it off
+    with [Gameplay] HostWorld=No. Back up your saves before trying it
+    (Documents\Rockstar Games\Red Dead Redemption 2\Profiles).
+  - Story cutscenes and mission parties for guests, spectating a partner while
+    you're down, bubbles (off by default), the party list, chat, waypoints.
+  - The co-op loader for everyone, with ScriptHookRDRDotNet switched off when
+    it sits next to it (restart once when asked).
+  - Fixes: no more staying dead, the game's yes/no answers read correctly with
+    third-party ScriptHook builds, no hidden enemies shooting guests, wagon
+    and train copies, riding double.
+- The log lists your other installed mods and your ScriptHookRDR2 version.
+
 ## 0.9.0-beta.8.4.9 (beta, 1 Nov 2026) - protocol 13
 - Fixed in some players' games: the mod misread the game's yes/no answers, so
   every check came back "yes". You counted as dead while riding around,
