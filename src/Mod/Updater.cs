@@ -42,7 +42,7 @@ namespace RDR2Coop.Mod
         volatile bool _busy, _done;
         volatile string _installed;   // what the last download put in place (an update or a switch)
         // Three tracks: stable, the beta (0.9.0-beta.x, the big new things) and the fixes beta (x.y.z-rc.n, the next
-        // stable's small fixes early; George, 30 Oct: "a 2nd beta that is just a beta for the small fixes"). An rc
+        // stable's small fixes early; the author, 30 Oct: "a 2nd beta that is just a beta for the small fixes"). An rc
         // follows the rc channel and goes on to the stable it leads to; it's never moved onto the beta.
         static bool IsRc => BuildInfo.Version.Contains("-rc");
         static bool IsBeta => BuildInfo.Version.Contains("-") && !IsRc;
@@ -67,7 +67,7 @@ namespace RDR2Coop.Mod
             : _done ? (_installed == _available ? $"Updated to {_available}: press Insert to load it" : null)
             : _busy ? $"Updating to {_available}..." : $"Update to {_available} (Enter)";
 
-        // The More tab's switch between stable and the beta (George, 29 Oct: "easier to switch between stable and beta
+        // The More tab's switch between stable and the beta (the author, 29 Oct: "easier to switch between stable and beta
         // from the in game F10 menu instead of having to swap out files manually"). The mod file only, like an update;
         // settings stay. null when there's nothing to switch to.
         public string SwitchLabel => _other == null ? null
@@ -103,7 +103,7 @@ namespace RDR2Coop.Mod
             string v = Offered("/latest/download/latest.txt");
             if (v == null && IsBeta) v = Offered("/download/beta-channel/latest.txt");
             if (v == null && IsRc) v = Offered(RcChannel);
-            _rc = IsRc ? Back() : TryRc();   // every track offers the other two (George, 30 Oct: switch to rc versions the same way)
+            _rc = IsRc ? Back() : TryRc();   // every track offers the other two (the author, 30 Oct: switch to rc versions the same way)
             _other = Other(IsBeta ? "/latest/download/latest.txt" : "/download/beta-channel/latest.txt");
             if (v == null || v == _available || _busy) return;   // nothing new since the last check (already said)
             _available = v;
@@ -230,11 +230,11 @@ namespace RDR2Coop.Mod
         }
 
 #if NET48
-        // The new loader for every version (George, 31 Oct: "it should be default now that the new loader is used for all
+        // The new loader for every version (the author, 31 Oct: "it should be default now that the new loader is used for all
         // versions"): this version's loader comes from the release's own zip, signed like the dll, unpacked as the zip lays
         // it out (RDR2Coop.asi + the RDR2Coop folder; the player's scripts\RDR2Coop.ini stays). This dll goes to
         // RDR2Coop\backup: the loader won't start while scripts\RDR2Coop.dll and ScriptHookRDRDotNet.asi are both there.
-        // ScriptHookRDRDotNet.asi is switched off too (renamed .off; George, 31 Oct: "I don't care about other mod support
+        // ScriptHookRDRDotNet.asi is switched off too (renamed .off; the author, 31 Oct: "I don't care about other mod support
         // yet. Make it so it moves it out the way"): the loader runs what's in scripts\ itself then, enRage with its co-op
         // link. The asi only loads when the game starts: true = restart the game.
 

@@ -1,7 +1,7 @@
 // Log uploads from beta builds of RDR2 Co-op (the author, 25 Oct: "have peoples logs autosend if they use
 // beta versions"). Opt-in in the mod ([Testing] SendLogs=Yes, asked once in game); the mod scrubs addresses
 // and paths before sending. POST /v1/upload stores the body in R2 (size-capped, text only); GET /v1/list and
-// /v1/get?key= read it back with the author's LOG_READ_TOKEN. Objects expire after 30 days (R2 lifecycle rule 'keep-30-days').
+// /v1/get?key= read it back with the author's LOG_READ_TOKEN. Objects older than KEEP_DAYS go on the next list.
 import { keyFor, fieldsFrom } from './logic.js'
 
 const json = (body, status = 200) => new Response(JSON.stringify(body), { status, headers: { 'Content-Type': 'application/json' } })
@@ -34,9 +34,11 @@ export default {
     }
     if (url.pathname.startsWith('/v1/') && req.method === 'GET') {
       if (!sameSecret((req.headers.get('authorization') || '').replace(/^Bearer /, ''), env.LOG_READ_TOKEN)) return new Response('no', { status: 401 })
-      if (url.pathname === '/v1/list') {   // one page; the caller passes back `cursor` until it's gone. Old logs expire by the bucket's lifecycle rule.
-        const list = await env.LOGS.list({ prefix: url.searchParams.get('prefix') || 'logs/', cursor: url.searchParams.get('cursor') || undefined, limit: 1000, include: ['customMetadata'] })
-        return json({ objects: list.objects.map(o => ({ key: o.key, size: o.size, uploaded: o.uploaded, meta: o.customMetadata })), cursor: list.truncated ? list.cursor : null })
+      if (url.pathname === '/v1/list') {
+        const list = await env.LOGS.list({ prefix: url.searchParams.get('prefix') || 'logs/', limit: 500, include: ['customMetadata'] })
+        const cutoff = Date.now() - Number(env.KEEP_DAYS || 30) * 86400_000
+        for (const o of list.objects) if (o.uploaded.getTime() < cutoff) await env.LOGS.delete(o.key)
+        return json({ objects: list.objects.filter(o => o.uploaded.getTime() >= cutoff).map(o => ({ key: o.key, size: o.size, uploaded: o.uploaded, meta: o.customMetadata })) })
       }
       if (url.pathname === '/v1/get') {
         const o = await env.LOGS.get(url.searchParams.get('key') || '')

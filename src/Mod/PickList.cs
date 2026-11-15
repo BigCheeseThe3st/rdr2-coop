@@ -34,7 +34,7 @@ namespace RDR2Coop.Mod
         int SecondsLeft => Math.Max(0, (_readyAt - Environment.TickCount + 999) / 1000);
 
         /// <summary>Open a list. Each row's action runs after the list closes; onCancel on Esc. The label can carry ~codes~: they're stripped.</summary>
-        /// <summary>waitMs: no key answers it before then (George, 31 Oct: "forced to read it").</summary>
+        /// <summary>waitMs: no key answers it before then (the author, 31 Oct: "forced to read it").</summary>
         public static void Open(string title, IList<(string label, Action act)> rows, Action onCancel = null, string hint = null, int waitMs = 0)
         {
             if (rows == null || rows.Count == 0) return;
