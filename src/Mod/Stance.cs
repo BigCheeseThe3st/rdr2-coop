@@ -17,7 +17,7 @@ namespace RDR2Coop.Mod
         static PoseFlags _pose;
 
         // Read every 100 ms: a jump lasts most of a second, so none is missed.
-        public static PoseFlags Read(int ped, long now)
+        public static unsafe PoseFlags Read(int ped, long now)
         {
             if (!Visuals.Stance) return PoseFlags.None;
             if (now - _readMs < 100) return _pose;
@@ -29,11 +29,42 @@ namespace RDR2Coop.Mod
             if (PED.IS_PED_SWIMMING(ped)) f |= PoseFlags.Swimming;
             if (PED.IS_PED_FALLING(ped)) f |= PoseFlags.Falling;
             if (PED.IS_PED_RAGDOLL(ped)) f |= PoseFlags.Ragdoll;
+            if (PED.IS_PED_DIVING(ped)) f |= PoseFlags.Diving;
+            int from = 0;
+            if (PED.IS_PED_EVASIVE_DIVING(ped, &from)) f |= PoseFlags.Evading;
+            LogDive(f);
             return _pose = f;
+        }
+
+        // What the game called our first dive of each kind this session, for testing (which checks see which dive).
+        static bool _loggedDive, _loggedEvade;
+        static void LogDive(PoseFlags f)
+        {
+            string also = $"(jumping {(f & PoseFlags.Jumping) != 0}, falling {(f & PoseFlags.Falling) != 0}, swimming {(f & PoseFlags.Swimming) != 0})";
+            if ((f & PoseFlags.Evading) != 0 && !_loggedEvade) { _loggedEvade = true; CoopScript.Log("our move: diving out of the way " + also); }
+            else if ((f & PoseFlags.Diving) != 0 && !_loggedDive) { _loggedDive = true; CoopScript.Log("our move: a dive " + also); }
         }
 
         // ---- a partner's puppet ----
         readonly StanceTracker _moves = new StanceTracker();
+        long _diveCheckAt = -1;
+        string _diveKind;
+        static readonly System.Collections.Generic.HashSet<string> _shownKinds = new System.Collections.Generic.HashSet<string>();
+
+        // What they dived away from, here: the nearest wagon, or horse, within 8 m of the stand-in.
+        static int Threat(int ped)
+        {
+            var at = Peds.Position(ped);
+            int best = 0; float bestD = 8f;
+            foreach (var v in EntityScan.Vehicles(new[] { at }, 8f)) Consider(v);
+            foreach (var p in EntityScan.Peds(new[] { at }, 8f)) if (p != ped && !PED.IS_PED_HUMAN(p)) Consider(p);   // horses (and animals)
+            return best;
+            void Consider(int e)
+            {
+                float d = ENTITY.GET_ENTITY_COORDS(e, true, true).DistanceTo(at);
+                if (d < bestD) { bestD = d; best = e; }
+            }
+        }
         bool _ready, _crouched;
         long _crouchMs;
 
@@ -59,6 +90,20 @@ namespace RDR2Coop.Mod
             bool near = (s.Pose & Moves) != 0 && Peds.Position(ped).DistanceTo(them) < 3f;   // only read while they make a move
             var step = _moves.Update(s.Pose, near, now);
             if ((step & StanceStep.Jump) != 0) TASK.TASK_JUMP(ped, true);
+            if ((step & StanceStep.Dive) != 0) { TASK.TASK_JUMP(ped, true); _diveCheckAt = now + 300; _diveKind = "a dive"; }   // a leap from where it runs: off the edge into the water, or forward
+            if ((step & StanceStep.Evade) != 0)
+            {
+                int threat = Threat(ped);
+                if (threat != 0) TASK.TASK_EVASIVE_ANIM(ped, threat, 0);
+                else TASK.TASK_JUMP(ped, true);   // nothing here to dive away from: at least the leap
+                _diveCheckAt = now + 300; _diveKind = threat != 0 ? "diving out of the way" : "diving out of the way (nothing near to dive from: a jump)";
+            }
+            if (_diveCheckAt >= 0 && now >= _diveCheckAt)   // once per kind: did the stand-in really make the move? (for testing)
+            {
+                _diveCheckAt = -1;
+                if (_shownKinds.Add(_diveKind))
+                    CoopScript.Log($"a stand-in's {_diveKind}: diving {PED.IS_PED_DIVING(ped)}, jumping {PED.IS_PED_JUMPING(ped)}, ragdoll {PED.IS_PED_RAGDOLL(ped)}");
+            }
             if ((step & StanceStep.Climb) != 0) TASK.TASK_CLIMB(ped, true);   // climbs or vaults the nearest thing: what they climbed
             if ((step & StanceStep.Ragdoll) != 0) PED.SET_PED_TO_RAGDOLL(ped, 1000, StanceTracker.RagdollMs, 0, false, false, null);
             // Still below the wall they climbed, or up where they jumped or fell from: put it beside them.

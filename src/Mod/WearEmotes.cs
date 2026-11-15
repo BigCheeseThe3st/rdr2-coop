@@ -92,8 +92,7 @@ namespace RDR2Coop.Mod
             act.Scenario = want;
             act.Ms = now;
             if (want == 0) return false;
-            ENTITY._SET_ENTITY_COORDS_AND_HEADING(ped, at, s.Heading, false, false, false);
-            TASK.TASK_START_SCENARIO_IN_PLACE_HASH(ped, want, -1, true, 0, s.Heading, false);
+            MirrorWorld.PlayScenario(ped, want, at, s.Heading);
             CoopScript.Log($"a stand-in plays scenario {want:X8}");
             return true;
         }
