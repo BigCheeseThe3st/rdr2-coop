@@ -635,6 +635,7 @@ namespace RDR2Coop.Mod
             if (gap > 2000) _explosions.Clear();   // partners' blasts kept while we were frozen: long over, not into the game now
             Trace("tick: host world");
             _hostWorld.Tick(_link, now);   // every frame, connected or not: a dropped link takes the guest's own story back
+            NoSlowMo.Tick();
 #if !NET48
             EnrageGuest.Tick(_link.State == LinkState.Connected && !_link.IAmHost && _link.Roster.Count > 1, now);
 #endif

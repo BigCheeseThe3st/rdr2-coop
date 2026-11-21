@@ -3,6 +3,14 @@
 Servers and players must run the same protocol version; when it changes, update
 the server's relay.py together with the mod.
 
+## 0.9.0-beta.8.5 (beta, 21 Nov 2026) - protocol 13
+- No slow motion (new, please test): the weapon wheel, the satchel, Dead Eye
+  and other slow motion run at normal speed, so the game stays in step with
+  your partners. Story cutscenes keep their own timing. [Gameplay]
+  NoSlowMotion=No gives the game's own slow motion back. Not tried in a game
+  before release: if something still slows down, the log says "slow motion
+  still seen" with how much; send it with the log.
+
 ## 0.8.0 (15 Nov 2026) - protocol 13
 - The 0.9.0 betas are now the stable version. Everything since 0.7.70 is in
   (see the 0.9.0-beta entries below for the details), mainly:
